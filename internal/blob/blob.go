@@ -39,15 +39,20 @@ func (s *Store) Write(id string, r io.Reader, maxBytes int64) (string, int64, er
 	if err != nil {
 		return "", 0, err
 	}
-	defer f.Close()
 
-	// One extra byte tells us the client blew past the limit.
-	n, err := io.Copy(f, io.LimitReader(r, maxBytes+1))
-	if err != nil {
+	// One extra byte tells us the client blew past the limit. Close before any
+	// cleanup: Windows refuses to unlink a file that still has an open handle.
+	n, copyErr := io.Copy(f, io.LimitReader(r, maxBytes+1))
+	closeErr := f.Close()
+
+	switch {
+	case copyErr != nil:
 		os.Remove(full)
-		return "", 0, err
-	}
-	if n > maxBytes {
+		return "", 0, copyErr
+	case closeErr != nil:
+		os.Remove(full)
+		return "", 0, closeErr
+	case n > maxBytes:
 		os.Remove(full)
 		return "", 0, ErrTooLarge
 	}

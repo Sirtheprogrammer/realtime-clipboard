@@ -135,11 +135,11 @@ function goToRoom(code, { replace = false } = {}) {
 
 function route() {
   const code = roomFromPath();
-  if (code === state.room && code) return;
+  if (code && code === state.room) return;
+  closeRoom(); // drop the previous room's socket before opening another
   if (code) {
     openRoom(code);
   } else {
-    closeRoom();
     $("dashboard").hidden = true;
     $("landing").hidden = false;
     document.title = "Clipboard — realtime clipboard for all your devices";
@@ -151,6 +151,7 @@ function route() {
 function openRoom(code) {
   state.room = code;
   state.items.clear();
+  cardCache.clear();
   $("landing").hidden = true;
   $("dashboard").hidden = false;
   $("roomCode").textContent = code;
@@ -235,6 +236,7 @@ function handleServerMessage({ type, payload }) {
   switch (type) {
     case "welcome":
       state.clientId = payload.client_id;
+      cardCache.clear();
       state.limits = payload.limits || state.limits;
       state.peers = payload.peers || [];
       state.items.clear();
@@ -256,6 +258,7 @@ function handleServerMessage({ type, payload }) {
 
     case "room.cleared":
       state.items.clear();
+      cardCache.clear();
       renderStream();
       break;
 
@@ -437,6 +440,10 @@ function matchesFilter(item) {
   return item.kind === state.filter;
 }
 
+// Cards are cached by item id and moved rather than rebuilt, so an arriving
+// item never makes the other images flash or collapses an expanded paste.
+const cardCache = new Map();
+
 function renderStream({ highlight } = {}) {
   const stream = $("stream");
   const items = [...state.items.values()].sort(
@@ -444,7 +451,18 @@ function renderStream({ highlight } = {}) {
   );
   const visible = items.filter(matchesFilter);
 
-  stream.replaceChildren(...visible.map((item) => buildCard(item, item.id === highlight)));
+  for (const id of cardCache.keys()) {
+    if (!state.items.has(id)) cardCache.delete(id);
+  }
+
+  stream.replaceChildren(...visible.map((item) => {
+    let card = cardCache.get(item.id);
+    if (!card) {
+      card = buildCard(item, item.id === highlight);
+      cardCache.set(item.id, card);
+    }
+    return card;
+  }));
   $("empty").hidden = visible.length > 0;
 
   const bytes = items.reduce((total, item) => total + (item.size_bytes || 0), 0);
