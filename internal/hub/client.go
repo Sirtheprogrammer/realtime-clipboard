@@ -1,18 +1,19 @@
 package hub
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
 )
 
 const (
 	writeWait      = 10 * time.Second
-	pongWait       = 60 * time.Second
 	pingPeriod     = 25 * time.Second
-	maxMessageSize = 1 << 20 // 1 MiB: text pastes travel over the socket
+	pingWait       = 15 * time.Second
+	maxMessageSize = 1 << 20 // 1 MiB: pasted text travels over the socket
 	sendBuffer     = 32
 )
 
@@ -22,15 +23,18 @@ type Client struct {
 	Room   string
 	Device string
 
-	hub  *Hub
-	conn *websocket.Conn
-	send chan []byte
-	done chan struct{}
-	once sync.Once
+	hub    *Hub
+	conn   *websocket.Conn
+	send   chan []byte
+	ctx    context.Context
+	cancel context.CancelFunc
+	once   sync.Once
 }
 
-// Serve registers the client, starts its pumps and blocks until it disconnects.
-func (h *Hub) Serve(conn *websocket.Conn, id, room, device string) *Client {
+// Serve registers a freshly accepted connection and starts its read/write
+// pumps. Call Wait to block until the client goes away.
+func (h *Hub) Serve(ctx context.Context, conn *websocket.Conn, id, room, device string) *Client {
+	ctx, cancel := context.WithCancel(ctx)
 	c := &Client{
 		ID:     id,
 		Room:   room,
@@ -38,8 +42,10 @@ func (h *Hub) Serve(conn *websocket.Conn, id, room, device string) *Client {
 		hub:    h,
 		conn:   conn,
 		send:   make(chan []byte, sendBuffer),
-		done:   make(chan struct{}),
+		ctx:    ctx,
+		cancel: cancel,
 	}
+	conn.SetReadLimit(maxMessageSize)
 	h.add(c)
 	go c.writePump()
 	go c.readPump()
@@ -57,43 +63,41 @@ func (c *Client) Send(msgType string, payload any) {
 }
 
 // Wait blocks until the client's connection is torn down.
-func (c *Client) Wait() { <-c.done }
+func (c *Client) Wait() { <-c.ctx.Done() }
 
-// enqueue drops the message rather than blocking the broadcaster when a slow
-// client has filled its buffer; that client is then closed.
+// enqueue drops a client that has stopped draining its buffer rather than
+// letting it stall the broadcaster.
 func (c *Client) enqueue(raw []byte) {
 	select {
 	case c.send <- raw:
+	case <-c.ctx.Done():
 	default:
 		c.hub.log.Warn("dropping slow client", "client", c.ID, "room", c.Room)
-		c.close()
+		c.close(websocket.StatusPolicyViolation, "client too slow")
 	}
 }
 
-func (c *Client) close() {
+func (c *Client) close(status websocket.StatusCode, reason string) {
 	c.once.Do(func() {
 		c.hub.remove(c)
-		close(c.done)
-		c.conn.Close()
+		c.cancel()
+		_ = c.conn.Close(status, reason)
 	})
 }
 
 func (c *Client) readPump() {
 	defer func() {
-		c.close()
+		c.close(websocket.StatusNormalClosure, "")
 		c.hub.BroadcastPresence(c.Room)
 	}()
 
-	c.conn.SetReadLimit(maxMessageSize)
-	_ = c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error {
-		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	})
-
 	for {
-		_, raw, err := c.conn.ReadMessage()
+		typ, raw, err := c.conn.Read(c.ctx)
 		if err != nil {
 			return
+		}
+		if typ != websocket.MessageText {
+			continue
 		}
 		var env Envelope
 		if err := json.Unmarshal(raw, &env); err != nil {
@@ -114,27 +118,32 @@ func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
-		c.close()
+		c.close(websocket.StatusNormalClosure, "")
 	}()
 
 	for {
 		select {
-		case raw, ok := <-c.send:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if !ok {
-				_ = c.conn.WriteMessage(websocket.CloseMessage, nil)
-				return
-			}
-			if err := c.conn.WriteMessage(websocket.TextMessage, raw); err != nil {
+		case raw := <-c.send:
+			if err := c.write(raw); err != nil {
 				return
 			}
 		case <-ticker.C:
-			_ = c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			// A failed ping is how we notice a laptop that slept or a phone
+			// that dropped off wifi without closing the socket.
+			ctx, cancel := context.WithTimeout(c.ctx, pingWait)
+			err := c.conn.Ping(ctx)
+			cancel()
+			if err != nil {
 				return
 			}
-		case <-c.done:
+		case <-c.ctx.Done():
 			return
 		}
 	}
+}
+
+func (c *Client) write(raw []byte) error {
+	ctx, cancel := context.WithTimeout(c.ctx, writeWait)
+	defer cancel()
+	return c.conn.Write(ctx, websocket.MessageText, raw)
 }
