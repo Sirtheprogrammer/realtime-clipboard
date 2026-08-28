@@ -31,11 +31,11 @@ func TestNormalizeRoomCode(t *testing.T) {
 		{"abcd-efgh", "abcd-efgh", true},
 		{"  ABCD-EFGH  ", "abcd-efgh", true},
 		{"-abcd-", "abcd", true},
-		{"abc", "", false},                       // too short
-		{"abcd efgh", "", false},                 // space
-		{"abcd/efgh", "", false},                 // path separator
-		{"../../etc/passwd", "", false},          // traversal
-		{strings.Repeat("a", 65), "", false},     // too long
+		{"abc", "", false},                   // too short
+		{"abcd efgh", "", false},             // space
+		{"abcd/efgh", "", false},             // path separator
+		{"../../etc/passwd", "", false},      // traversal
+		{strings.Repeat("a", 65), "", false}, // too long
 		{"", "", false},
 	}
 	for _, tc := range tests {
