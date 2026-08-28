@@ -1,0 +1,34 @@
+# Two app instances against one database — the shape of `heroku ps:scale web=2`.
+#
+# Use it to check that a room stays in sync across instances, which relies on
+# Postgres LISTEN/NOTIFY rather than the in-process hub:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d --build
+#   CLIPBOARD_E2E_URL=http://localhost:8080 \
+#   CLIPBOARD_E2E_URL_B=http://localhost:8081 go test ./e2e/...
+#
+# Both instances store uploads in Postgres, as they must on Heroku, so this also
+# exercises the blob backend that deploy uses.
+
+services:
+  app:
+    environment:
+      BLOB_BACKEND: postgres
+      INSTANCE_ID: app-a
+
+  app-b:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-clipboard}:${POSTGRES_PASSWORD:-clipboard}@db:5432/${POSTGRES_DB:-clipboard}?sslmode=disable
+      BLOB_BACKEND: postgres
+      INSTANCE_ID: app-b
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-104857600}
+      RETENTION: ${RETENTION:-24h}
+      SWEEP_INTERVAL: ${SWEEP_INTERVAL:-5m}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+    ports:
+      - "${PORT_B:-8081}:8080"

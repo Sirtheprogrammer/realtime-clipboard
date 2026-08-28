@@ -1,94 +1,43 @@
+// Package blob stores the bytes behind an uploaded item. Metadata always lives
+// in Postgres; the payload goes wherever the deployment can keep it.
 package blob
 
 import (
 	"errors"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
-	"strings"
 )
 
-// Store keeps uploaded payloads on a mounted volume; Postgres only holds the
-// metadata, which keeps large pastes out of the database.
-type Store struct {
-	root string
-}
-
-func New(root string) (*Store, error) {
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return nil, fmt.Errorf("create blob dir: %w", err)
-	}
-	abs, err := filepath.Abs(root)
-	if err != nil {
-		return nil, err
-	}
-	return &Store{root: abs}, nil
-}
-
-// Write streams r to disk under a path derived from id, capped at maxBytes.
-// It returns the storage-relative path and the number of bytes written.
-func (s *Store) Write(id string, r io.Reader, maxBytes int64) (string, int64, error) {
-	rel := filepath.Join(id[:2], id)
-	full := filepath.Join(s.root, rel)
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
-		return "", 0, err
-	}
-
-	f, err := os.Create(full)
-	if err != nil {
-		return "", 0, err
-	}
-
-	// One extra byte tells us the client blew past the limit. Close before any
-	// cleanup: Windows refuses to unlink a file that still has an open handle.
-	n, copyErr := io.Copy(f, io.LimitReader(r, maxBytes+1))
-	closeErr := f.Close()
-
-	switch {
-	case copyErr != nil:
-		os.Remove(full)
-		return "", 0, copyErr
-	case closeErr != nil:
-		os.Remove(full)
-		return "", 0, closeErr
-	case n > maxBytes:
-		os.Remove(full)
-		return "", 0, ErrTooLarge
-	}
-	return filepath.ToSlash(rel), n, nil
-}
-
+// ErrTooLarge is returned when a payload runs past the configured limit.
 var ErrTooLarge = errors.New("payload exceeds the upload limit")
 
-func (s *Store) Open(rel string) (*os.File, error) {
-	full, err := s.resolve(rel)
-	if err != nil {
-		return nil, err
-	}
-	return os.Open(full)
+// Store is the contract both backends implement.
+//
+// Open returns a ReadSeekCloser because item downloads go through
+// http.ServeContent, which needs to seek in order to answer range requests —
+// that is what lets a browser scrub a video or resume a download.
+type Store interface {
+	// Write streams r into storage under a key derived from id, refusing
+	// anything larger than maxBytes. It returns the path to hand to Open later
+	// and the number of bytes stored.
+	Write(id string, r io.Reader, maxBytes int64) (path string, size int64, err error)
+
+	// Open returns the stored payload. A missing payload reports an error for
+	// which IsNotExist returns true.
+	Open(path string) (io.ReadSeekCloser, error)
+
+	// Remove deletes the payload. Removing something already gone is not an
+	// error: a user delete and the expiry janitor can race.
+	Remove(path string) error
+
+	// Describe names the backend for startup logs.
+	Describe() string
 }
 
-func (s *Store) Remove(rel string) error {
-	full, err := s.resolve(rel)
-	if err != nil {
-		return err
-	}
-	if err := os.Remove(full); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	os.Remove(filepath.Dir(full)) // best effort: drop the shard if it is empty
-	return nil
+// IsNotExist reports whether err means "that payload is not here", across both
+// backends.
+func IsNotExist(err error) bool {
+	return errors.Is(err, ErrNotExist)
 }
 
-// resolve guards against a stored path escaping the blob root.
-func (s *Store) resolve(rel string) (string, error) {
-	if rel == "" {
-		return "", errors.New("empty blob path")
-	}
-	full := filepath.Join(s.root, filepath.FromSlash(rel))
-	if !strings.HasPrefix(full, s.root+string(os.PathSeparator)) {
-		return "", errors.New("blob path escapes root")
-	}
-	return full, nil
-}
+// ErrNotExist is the backend-independent "no such payload".
+var ErrNotExist = errors.New("blob does not exist")

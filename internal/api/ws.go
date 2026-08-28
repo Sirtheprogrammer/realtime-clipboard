@@ -77,7 +77,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"retention":        s.cfg.Retention.String(),
 		},
 	})
-	s.hub.BroadcastPresence(code)
+	s.hub.PresenceChanged(code)
 
 	client.Wait()
 }
@@ -102,7 +102,7 @@ func (s *Server) HandleMessage(c *hub.Client, env hub.Envelope) {
 			c.Send("error", map[string]string{"message": socketError(err)})
 			return
 		}
-		s.hub.Broadcast(c.Room, "item.created", item, "")
+		s.fanoutItemCreated(ctx, item)
 
 	case "item.delete":
 		var payload struct {
@@ -116,17 +116,17 @@ func (s *Server) HandleMessage(c *hub.Client, env hub.Envelope) {
 			c.Send("error", map[string]string{"message": "could not delete that item"})
 			return
 		}
-		s.hub.Broadcast(c.Room, "item.deleted", map[string]string{"id": payload.ID}, "")
+		s.fanoutItemDeleted(ctx, c.Room, payload.ID)
 
 	case "room.clear":
 		if err := s.clearRoom(ctx, c.Room); err != nil {
 			c.Send("error", map[string]string{"message": "could not clear the room"})
 			return
 		}
-		s.hub.Broadcast(c.Room, "room.cleared", map[string]any{}, "")
+		s.fanoutRoomCleared(ctx, c.Room)
 
 	case "presence.refresh":
-		s.hub.BroadcastPresence(c.Room)
+		s.hub.PresenceChanged(c.Room)
 
 	default:
 		c.Send("error", map[string]string{"message": "unknown message type: " + env.Type})

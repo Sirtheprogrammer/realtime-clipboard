@@ -88,7 +88,7 @@ func (c *Client) close(status websocket.StatusCode, reason string) {
 func (c *Client) readPump() {
 	defer func() {
 		c.close(websocket.StatusNormalClosure, "")
-		c.hub.BroadcastPresence(c.Room)
+		c.hub.PresenceChanged(c.Room)
 	}()
 
 	for {

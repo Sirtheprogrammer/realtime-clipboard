@@ -16,6 +16,7 @@ const state = {
   connected: false,
   retry: 0,
   retryTimer: null,
+  heartbeat: null,
 };
 
 /* ── Small helpers ─────────────────────────────────────────── */
@@ -165,6 +166,10 @@ function openRoom(code) {
 function closeRoom() {
   state.room = null;
   if (state.retryTimer) clearTimeout(state.retryTimer);
+  if (state.heartbeat) {
+    clearInterval(state.heartbeat);
+    state.heartbeat = null;
+  }
   if (state.socket) {
     const socket = state.socket;
     state.socket = null;
@@ -191,6 +196,7 @@ function connect() {
     state.connected = true;
     setStatus("online");
     $("offlineBanner").hidden = true;
+    startHeartbeat(socket);
   });
 
   socket.addEventListener("message", (event) => {
@@ -214,6 +220,21 @@ function connect() {
   });
 
   socket.addEventListener("error", () => socket.close());
+}
+
+// Some proxies — Heroku's router among them — close a connection that has been
+// idle for around a minute. The server pings too; this is the other half, so
+// the socket stays warm even where only client traffic is counted.
+function startHeartbeat(socket) {
+  if (state.heartbeat) clearInterval(state.heartbeat);
+  state.heartbeat = setInterval(() => {
+    if (socket.readyState !== WebSocket.OPEN) {
+      clearInterval(state.heartbeat);
+      state.heartbeat = null;
+      return;
+    }
+    socket.send(JSON.stringify({ type: "ping" }));
+  }, 25000);
 }
 
 // Back off gradually, with jitter so a restarted server does not get every

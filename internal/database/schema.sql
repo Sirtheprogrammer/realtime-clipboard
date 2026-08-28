@@ -22,3 +22,16 @@ CREATE TABLE IF NOT EXISTS items (
 
 CREATE INDEX IF NOT EXISTS items_room_created_idx ON items (room_code, created_at DESC);
 CREATE INDEX IF NOT EXISTS items_expires_idx ON items (expires_at);
+
+-- Payload storage for deployments without a durable filesystem (see
+-- internal/blob/postgres.go). Every chunk but the last is exactly 1 MiB, which
+-- is what lets the reader seek by arithmetic instead of a lookup.
+CREATE TABLE IF NOT EXISTS blob_chunks (
+    blob_id    TEXT NOT NULL,
+    seq        INTEGER NOT NULL,
+    data       BYTEA NOT NULL,
+    -- created_at exists so orphan cleanup can leave in-flight uploads alone:
+    -- chunks are written before the item row that references them.
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (blob_id, seq)
+);

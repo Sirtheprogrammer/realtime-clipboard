@@ -1,0 +1,11 @@
+# Container deploys reuse the same Dockerfile as Docker Compose, so what runs
+# on Heroku is the image you tested locally.
+#
+#   heroku stack:set container
+#   git push heroku main
+#
+# No `run:` section: the image's CMD already starts the server, and it binds to
+# the $PORT Heroku assigns.
+build:
+  docker:
+    web: Dockerfile

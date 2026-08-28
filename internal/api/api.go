@@ -15,6 +15,7 @@ import (
 
 	"clipboard/internal/blob"
 	"clipboard/internal/config"
+	"clipboard/internal/events"
 	"clipboard/internal/hub"
 	"clipboard/internal/store"
 )
@@ -22,13 +23,14 @@ import (
 type Server struct {
 	cfg   config.Config
 	store *store.Store
-	blobs *blob.Store
+	blobs blob.Store
 	hub   *hub.Hub
+	bus   *events.Bus
 	log   *slog.Logger
 }
 
-func NewServer(cfg config.Config, st *store.Store, blobs *blob.Store, h *hub.Hub, log *slog.Logger) *Server {
-	s := &Server{cfg: cfg, store: st, blobs: blobs, hub: h, log: log}
+func NewServer(cfg config.Config, st *store.Store, blobs blob.Store, h *hub.Hub, bus *events.Bus, log *slog.Logger) *Server {
+	s := &Server{cfg: cfg, store: st, blobs: blobs, hub: h, bus: bus, log: log}
 	h.SetHandler(s)
 	return s
 }
@@ -123,9 +125,26 @@ func (s *Server) sweep(ctx context.Context) {
 	if err := s.store.DeleteEmptyRooms(ctx, 7*24*time.Hour); err != nil {
 		s.log.Error("prune empty rooms", "err", err)
 	}
+	// Safety net for the Postgres blob backend: drop chunk rows whose item is
+	// gone, so a crash between the two deletes cannot leak storage.
+	if s.cfg.BlobBackend == config.BackendPostgres {
+		if n, err := s.store.DeleteOrphanBlobChunks(ctx); err != nil {
+			s.log.Error("prune orphan blob chunks", "err", err)
+		} else if n > 0 {
+			s.log.Info("pruned orphan blob chunks", "chunks", n)
+		}
+	}
 	if len(paths) > 0 {
 		s.log.Info("swept expired items", "blobs", len(paths))
 	}
+}
+
+// StartEvents connects this instance to its siblings, so a room stays in sync
+// when more than one dyno or container is serving it.
+func (s *Server) StartEvents(ctx context.Context) {
+	s.hub.SetPresencePublisher(func(room string) { s.publishPresence(ctx, room) })
+	s.bus.Listen(ctx, s.handleRemoteEvent)
+	go s.presenceHeartbeat(ctx)
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {

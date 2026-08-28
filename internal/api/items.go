@@ -96,7 +96,7 @@ func (s *Server) handleCreateTextItem(w http.ResponseWriter, r *http.Request) {
 		s.writeCreateError(w, err)
 		return
 	}
-	s.hub.Broadcast(code, "item.created", item, "")
+	s.fanoutItemCreated(r.Context(), item)
 	writeJSON(w, http.StatusCreated, item)
 }
 
@@ -215,7 +215,7 @@ func (s *Server) handleUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	for _, item := range created {
-		s.hub.Broadcast(code, "item.created", item, "")
+		s.fanoutItemCreated(r.Context(), item)
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"items": created})
 }
@@ -307,7 +307,7 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not delete that item")
 		return
 	}
-	s.hub.Broadcast(code, "item.deleted", map[string]string{"id": id}, "")
+	s.fanoutItemDeleted(r.Context(), code, id)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -338,7 +338,7 @@ func (s *Server) handleClearRoom(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not clear the room")
 		return
 	}
-	s.hub.Broadcast(code, "room.cleared", map[string]any{}, "")
+	s.fanoutRoomCleared(r.Context(), code)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -386,7 +386,9 @@ func (s *Server) serveBlob(w http.ResponseWriter, r *http.Request, asAttachment 
 
 	f, err := s.blobs.Open(item.BlobPath)
 	if err != nil {
-		s.log.Error("open blob", "path", item.BlobPath, "err", err)
+		if !blob.IsNotExist(err) {
+			s.log.Error("open blob", "path", item.BlobPath, "err", err)
+		}
 		writeError(w, http.StatusNotFound, "file is no longer available")
 		return
 	}

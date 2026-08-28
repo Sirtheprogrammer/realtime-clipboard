@@ -39,7 +39,7 @@ func TestWriteReadRemove(t *testing.T) {
 	if err := store.Remove(path); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
-	if _, err := store.Open(path); !os.IsNotExist(err) {
+	if _, err := store.Open(path); !IsNotExist(err) {
 		t.Fatalf("expected the blob to be gone, got err=%v", err)
 	}
 	// Removing twice is not an error; the janitor and a user delete can race.
@@ -72,16 +72,16 @@ func TestResolveRejectsEscapes(t *testing.T) {
 	}
 }
 
-func newTestStore(t *testing.T) *Store {
+func newTestStore(t *testing.T) *Disk {
 	t.Helper()
-	store, err := New(t.TempDir())
+	store, err := NewDisk(t.TempDir())
 	if err != nil {
 		t.Fatalf("new store: %v", err)
 	}
 	return store
 }
 
-func storeRoot(t *testing.T, s *Store) string {
+func storeRoot(t *testing.T, s *Disk) string {
 	t.Helper()
 	return s.root
 }

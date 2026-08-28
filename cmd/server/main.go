@@ -14,6 +14,7 @@ import (
 	"clipboard/internal/blob"
 	"clipboard/internal/config"
 	"clipboard/internal/database"
+	"clipboard/internal/events"
 	"clipboard/internal/hub"
 	"clipboard/internal/store"
 )
@@ -30,25 +31,32 @@ func main() {
 
 func run(log *slog.Logger) error {
 	cfg := config.Load()
+	for _, note := range cfg.Notes {
+		log.Info("config", "note", note)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := database.Connect(ctx, cfg.DatabaseURL)
+	pool, err := database.Connect(ctx, cfg.DatabaseURL, cfg.MaxDBConns)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
 	log.Info("connected to postgres")
 
-	blobs, err := blob.New(cfg.BlobDir)
+	blobs, err := newBlobStore(cfg, pool)
 	if err != nil {
 		return err
 	}
+	log.Info("blob storage ready", "backend", blobs.Describe())
 
 	h := hub.New(log)
-	srv := api.NewServer(cfg, store.New(pool), blobs, h, log)
+	bus := events.New(pool, cfg.InstanceID, log)
+
+	srv := api.NewServer(cfg, store.New(pool), blobs, h, bus, log)
 	srv.StartJanitor(ctx)
+	srv.StartEvents(ctx)
 
 	httpServer := &http.Server{
 		Addr:    cfg.Addr,
@@ -61,7 +69,8 @@ func run(log *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("clipboard listening", "addr", cfg.Addr, "retention", cfg.Retention.String())
+		log.Info("clipboard listening",
+			"addr", cfg.Addr, "instance", cfg.InstanceID, "retention", cfg.Retention.String())
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}
@@ -77,4 +86,13 @@ func run(log *slog.Logger) error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	return httpServer.Shutdown(shutdownCtx)
+}
+
+// newBlobStore picks where uploaded bytes live. See config.blobBackend for why
+// a Heroku dyno cannot use the filesystem.
+func newBlobStore(cfg config.Config, pool *database.Pool) (blob.Store, error) {
+	if cfg.BlobBackend == config.BackendPostgres {
+		return blob.NewPostgres(pool), nil
+	}
+	return blob.NewDisk(cfg.BlobDir)
 }

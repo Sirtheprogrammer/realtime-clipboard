@@ -1,0 +1,46 @@
+{
+  "name": "Clipboard",
+  "description": "A realtime shared clipboard. Paste text, screenshots or files on one device and they appear instantly on every other device in the room.",
+  "repository": "https://github.com/your-account/clipboard",
+  "keywords": ["go", "websockets", "clipboard", "realtime", "pwa", "postgres"],
+  "stack": "container",
+  "addons": [
+    {
+      "plan": "heroku-postgresql:essential-0",
+      "as": "DATABASE"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "env": {
+    "BLOB_BACKEND": {
+      "description": "Where uploaded files are stored. Must be 'postgres' on Heroku: a dyno's filesystem is wiped on every restart and deploy, so anything written to disk disappears.",
+      "value": "postgres"
+    },
+    "MAX_UPLOAD_BYTES": {
+      "description": "Largest single upload, in bytes. Uploads consume Postgres storage on this platform, so the default is a conservative 10 MB rather than the 100 MB used with a disk volume.",
+      "value": "10485760"
+    },
+    "RETENTION": {
+      "description": "How long an item survives before it and its file are deleted. Shorter keeps the database small.",
+      "value": "12h"
+    },
+    "SWEEP_INTERVAL": {
+      "description": "How often the expiry janitor runs.",
+      "value": "5m"
+    },
+    "DB_MAX_CONNS": {
+      "description": "Postgres connections per dyno. Essential plans allow 20 in total, and every dyno holds one of its share open to listen for events from the others, so keep quantity x DB_MAX_CONNS under your plan's limit.",
+      "value": "8"
+    },
+    "ALLOWED_ORIGINS": {
+      "description": "Comma-separated origins allowed to open a websocket. Set this to your app's URL (https://your-app.herokuapp.com) once you know it — the '*' default accepts upgrades from any origin.",
+      "value": "*",
+      "required": false
+    }
+  }
+}

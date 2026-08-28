@@ -118,6 +118,21 @@ func (s *Store) DeleteExpired(ctx context.Context) ([]string, error) {
 	return collectPaths(rows)
 }
 
+// DeleteOrphanBlobChunks removes payload rows whose item no longer exists — a
+// safety net for a crash between deleting an item and deleting its blob. The
+// age floor keeps it away from uploads still in flight, whose chunks are
+// written before the item row that will reference them.
+func (s *Store) DeleteOrphanBlobChunks(ctx context.Context) (int64, error) {
+	tag, err := s.pool.Exec(ctx, `
+		DELETE FROM blob_chunks c
+		WHERE c.created_at < now() - interval '1 hour'
+		  AND NOT EXISTS (SELECT 1 FROM items i WHERE i.blob_path = c.blob_id)`)
+	if err != nil {
+		return 0, fmt.Errorf("delete orphan blob chunks: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // DeleteEmptyRooms prunes rooms nobody has touched and that hold no items.
 func (s *Store) DeleteEmptyRooms(ctx context.Context, idleFor time.Duration) error {
 	_, err := s.pool.Exec(ctx, `

@@ -1,0 +1,4 @@
+e2e
+data
+docker-compose.yml
+.env.example

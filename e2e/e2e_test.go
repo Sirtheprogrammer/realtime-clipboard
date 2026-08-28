@@ -27,11 +27,25 @@ import (
 	"github.com/coder/websocket"
 )
 
-var baseURL string
+var (
+	baseURL string
+	// baseURLB points at a second instance sharing the same database, which is
+	// what `heroku ps:scale web=2` produces. Optional.
+	baseURLB string
+)
 
 func TestMain(m *testing.M) {
 	baseURL = strings.TrimSuffix(os.Getenv("CLIPBOARD_E2E_URL"), "/")
+	baseURLB = strings.TrimSuffix(os.Getenv("CLIPBOARD_E2E_URL_B"), "/")
 	os.Exit(m.Run())
+}
+
+func requireCluster(t *testing.T) {
+	t.Helper()
+	requireServer(t)
+	if baseURLB == "" {
+		t.Skip("set CLIPBOARD_E2E_URL_B to a second instance to run the multi-instance tests")
+	}
 }
 
 func requireServer(t *testing.T) {
@@ -344,7 +358,12 @@ func createRoom(t *testing.T) string {
 
 func dial(t *testing.T, room, device string) *websocket.Conn {
 	t.Helper()
-	wsURL := "ws" + strings.TrimPrefix(baseURL, "http") +
+	return dialAt(t, baseURL, room, device)
+}
+
+func dialAt(t *testing.T, base, room, device string) *websocket.Conn {
+	t.Helper()
+	wsURL := "ws" + strings.TrimPrefix(base, "http") +
 		"/ws?room=" + url.QueryEscape(room) + "&device=" + url.QueryEscape(device)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -460,7 +479,37 @@ func getJSON(t *testing.T, path string, out any) {
 
 func getBytes(t *testing.T, path string) []byte {
 	t.Helper()
-	res, err := http.Get(baseURL + path)
+	return getBytesFrom(t, baseURL, path)
+}
+
+// getRangeFrom asks one instance for a byte range, which is how a browser
+// resumes a download or scrubs a video.
+func getRangeFrom(t *testing.T, base, path string, start, end int) []byte {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodGet, base+path, nil)
+	if err != nil {
+		t.Fatalf("build range request: %v", err)
+	}
+	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("range get %s: %v", path, err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusPartialContent {
+		t.Fatalf("range get %s status = %d, want 206", path, res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("read range %s: %v", path, err)
+	}
+	return body
+}
+
+func getBytesFrom(t *testing.T, base, path string) []byte {
+	t.Helper()
+	res, err := http.Get(base + path)
 	if err != nil {
 		t.Fatalf("get %s: %v", path, err)
 	}

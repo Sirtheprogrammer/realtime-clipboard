@@ -2,6 +2,11 @@ module clipboard
 
 go 1.26.5
 
+// Directives for Heroku's Go buildpack (the non-container deploy path).
+// Container deploys ignore these and use the Dockerfile.
+// +heroku goVersion go1.26
+// +heroku install ./cmd/server
+
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/google/uuid v1.6.0

@@ -32,10 +32,13 @@ ENV ADDR=:8080 \
     WEB_DIR=/app/web \
     BLOB_DIR=/data/blobs
 
+# Heroku assigns $PORT at runtime; the server prefers it over ADDR.
 EXPOSE 8080
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:8080/api/health || exit 1
+  CMD wget -qO- "http://127.0.0.1:${PORT:-8080}/api/health" || exit 1
 
-ENTRYPOINT ["/app/clipboard"]
+# CMD rather than ENTRYPOINT: Heroku's container runtime supplies its own
+# process command, which an ENTRYPOINT would turn into stray arguments.
+CMD ["/app/clipboard"]
