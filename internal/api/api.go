@@ -45,6 +45,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/rooms/{code}/upload", s.handleUpload)
 	mux.HandleFunc("DELETE /api/rooms/{code}/items", s.handleClearRoom)
 	mux.HandleFunc("DELETE /api/rooms/{code}/items/{id}", s.handleDeleteItem)
+	mux.HandleFunc("GET /api/rooms/{code}/qr.svg", s.handleRoomQR)
 	mux.HandleFunc("GET /api/items/{id}/raw", s.handleRawItem)
 	mux.HandleFunc("GET /api/items/{id}/download", s.handleDownloadItem)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
@@ -66,6 +67,14 @@ func (s *Server) mountStatic(mux *http.ServeMux) {
 	})
 
 	mux.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		// An unrouted API path is a mistake, not a deep link. Without this it
+		// would fall through to the shell and answer with HTML, which turns a
+		// typo into a confusing parse error at the caller.
+		if strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/ws" {
+			writeError(w, http.StatusNotFound, "no such endpoint")
+			return
+		}
+
 		clean := filepath.Join(s.cfg.WebDir, filepath.Clean("/"+strings.TrimPrefix(r.URL.Path, "/")))
 		if r.URL.Path == "/" {
 			noStore(w)

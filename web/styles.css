@@ -447,6 +447,53 @@ kbd {
 .dropzone-card b { font-size: 17px; }
 .dropzone-card span { color: var(--ink-3); font-size: 13.5px; }
 
+/* ── Modal (QR) ────────────────────────────────────────────── */
+.modal {
+  position: fixed; inset: 0; z-index: 96;
+  display: grid; place-items: center;
+  padding: 20px; background: rgba(6, 9, 16, .62);
+  backdrop-filter: blur(3px);
+  animation: fade-in .16s ease-out;
+}
+@keyframes fade-in { from { opacity: 0; } }
+
+.modal-card {
+  width: min(380px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 18px; box-shadow: var(--shadow-lg);
+  padding: 18px;
+  animation: rise .18s ease-out;
+}
+.modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.modal-head h2 { font-size: 17px; }
+.modal-lede { color: var(--ink-3); font-size: 13px; margin: 6px 0 14px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.modal-actions .btn { flex: 1; justify-content: center; }
+
+/* The frame stays white in both themes: QR readers expect dark on light. */
+.qr-frame {
+  display: grid; place-items: center;
+  background: #fff; border-radius: 12px;
+  padding: 12px; border: 1px solid var(--line);
+}
+.qr-frame img { display: block; width: 100%; max-width: 260px; height: auto; image-rendering: pixelated; }
+
+.qr-url {
+  font-family: var(--mono); font-size: 12px; color: var(--ink-2);
+  overflow-wrap: anywhere; text-align: center; margin: 12px 0 0;
+  user-select: all;
+}
+.qr-warning {
+  margin: 12px 0 0; padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  color: var(--ink-2); font-size: 12.5px;
+}
+.qr-cta { margin-top: 12px; }
+
 .lightbox {
   position: fixed; inset: 0; z-index: 95;
   display: grid; grid-template-rows: 1fr auto; place-items: center;

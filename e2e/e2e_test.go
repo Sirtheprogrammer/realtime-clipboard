@@ -300,9 +300,56 @@ func TestInvalidRoomCodeIsRejected(t *testing.T) {
 	}
 }
 
+func TestRoomQRCodeEncodesTheRoomURL(t *testing.T) {
+	requireServer(t)
+	room := createRoom(t)
+
+	res, err := http.Get(baseURL + "/api/rooms/" + room + "/qr.svg")
+	if err != nil {
+		t.Fatalf("get qr: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "image/svg+xml") {
+		t.Errorf("content type = %q", ct)
+	}
+	// The server derives the URL from the request host, so a phone scanning it
+	// reaches the same address this test used.
+	if want := baseURL + "/r/" + room; res.Header.Get("X-Clipboard-QR-Target") != want {
+		t.Errorf("QR target = %q, want %q", res.Header.Get("X-Clipboard-QR-Target"), want)
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	if !bytes.HasPrefix(body, []byte("<svg")) || !bytes.Contains(body, []byte("<path")) {
+		t.Errorf("body does not look like a rendered QR: %.80s", body)
+	}
+}
+
+func TestUnknownAPIPathReturnsJSONNotTheAppShell(t *testing.T) {
+	requireServer(t)
+	res, err := http.Get(baseURL + "/api/does-not-exist")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", res.StatusCode)
+	}
+	if ct := res.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("content type = %q, want JSON — an API caller should not get HTML", ct)
+	}
+}
+
 func TestDashboardIsServed(t *testing.T) {
 	requireServer(t)
-	for _, path := range []string{"/", "/r/abcd-efgh", "/app.js", "/styles.css", "/manifest.webmanifest"} {
+	for _, path := range []string{"/", "/r/abcd-efgh", "/app.js", "/styles.css", "/manifest.webmanifest", "/sw.js"} {
 		res, err := http.Get(baseURL + path)
 		if err != nil {
 			t.Fatalf("get %s: %v", path, err)

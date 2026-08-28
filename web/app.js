@@ -164,6 +164,7 @@ function openRoom(code) {
 }
 
 function closeRoom() {
+  if (state.room && !$("qrModal").hidden) closeQR();
   state.room = null;
   if (state.retryTimer) clearTimeout(state.retryTimer);
   if (state.heartbeat) {
@@ -680,6 +681,76 @@ function closeLightbox() {
   $("lightboxImg").src = "";
 }
 
+/* ── QR modal ──────────────────────────────────────────────── */
+
+// Hosts a phone on the same wifi cannot resolve. Worth calling out, because a
+// QR pointing at localhost fails in a way that looks like a broken app.
+const UNREACHABLE_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1", "0.0.0.0"]);
+
+let qrLastFocus = null;
+
+function openQR() {
+  if (!state.room) return;
+  const link = `${location.origin}/r/${state.room}`;
+
+  // The server builds the QR from the request host, so it matches whatever
+  // address this page was opened on.
+  $("qrImage").src = `/api/rooms/${encodeURIComponent(state.room)}/qr.svg`;
+  $("qrURL").textContent = link;
+
+  const warning = $("qrWarning");
+  if (UNREACHABLE_HOSTS.has(location.hostname)) {
+    warning.textContent =
+      "This page is open on " + location.hostname + ", which your phone cannot reach. " +
+      "Reopen the dashboard at your computer's network address, then scan again.";
+    warning.hidden = false;
+  } else {
+    warning.hidden = true;
+  }
+
+  $("qrShare").hidden = !navigator.share;
+
+  // On a phone the sidebar is a drawer; leaving it open behind the modal makes
+  // closing the QR feel like it did not work.
+  $("sidebar").classList.remove("open");
+  $("scrim").hidden = true;
+
+  qrLastFocus = document.activeElement;
+  $("qrModal").hidden = false;
+  $("qrClose").focus();
+}
+
+function closeQR() {
+  $("qrModal").hidden = true;
+  if (qrLastFocus instanceof HTMLElement) qrLastFocus.focus();
+  qrLastFocus = null;
+}
+
+function wireQR() {
+  const link = () => `${location.origin}/r/${state.room}`;
+
+  $("qrBtn").addEventListener("click", openQR);
+  $("showQR").addEventListener("click", openQR);
+  $("qrClose").addEventListener("click", closeQR);
+  $("qrCopy").addEventListener("click", () => copyText(link()));
+
+  $("qrShare").addEventListener("click", async () => {
+    try {
+      await navigator.share({ title: "Clipboard room", text: `Room ${state.room}`, url: link() });
+    } catch {
+      /* the user dismissed the share sheet */
+    }
+  });
+
+  $("qrModal").addEventListener("click", (event) => {
+    if (event.target === $("qrModal")) closeQR();
+  });
+
+  $("qrImage").addEventListener("error", () => {
+    toast("Could not load the QR code", "error");
+  });
+}
+
 /* ── Paste, drag and drop ──────────────────────────────────── */
 
 function wirePasteAndDrop() {
@@ -845,7 +916,8 @@ function wireChrome() {
 
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
-    if (!$("lightbox").hidden) closeLightbox();
+    if (!$("qrModal").hidden) closeQR();
+    else if (!$("lightbox").hidden) closeLightbox();
     else openSidebar(false);
   });
 
@@ -944,6 +1016,7 @@ renderLimits();
 wireLanding();
 wireChrome();
 wireComposer();
+wireQR();
 wirePasteAndDrop();
 wirePWA();
 
