@@ -1,0 +1,43 @@
+name: clipboard
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-clipboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-clipboard}
+      POSTGRES_DB: ${POSTGRES_DB:-clipboard}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-clipboard} -d ${POSTGRES_DB:-clipboard}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    # Not published by default — only the app needs to reach Postgres.
+    # Uncomment to inspect the database from the host.
+    # ports:
+    #   - "5432:5432"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-clipboard}:${POSTGRES_PASSWORD:-clipboard}@db:5432/${POSTGRES_DB:-clipboard}?sslmode=disable
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-104857600}
+      RETENTION: ${RETENTION:-24h}
+      SWEEP_INTERVAL: ${SWEEP_INTERVAL:-5m}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-*}
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - blobs:/data
+
+volumes:
+  pgdata:
+  blobs:
