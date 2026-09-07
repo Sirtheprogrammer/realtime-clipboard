@@ -931,20 +931,24 @@ function wireTheme() {
   if (stored) document.documentElement.dataset.theme = stored;
   syncThemeIcon();
 
-  $("themeBtn").addEventListener("click", () => {
-    const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
-    const current = document.documentElement.dataset.theme || (prefersDark ? "dark" : "light");
-    const next = current === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
-    localStorage.setItem("clipboard.theme", next);
-    syncThemeIcon();
+  document.querySelectorAll(".theme-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
+      const current = document.documentElement.dataset.theme || (prefersDark ? "dark" : "light");
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.dataset.theme = next;
+      localStorage.setItem("clipboard.theme", next);
+      syncThemeIcon();
+    });
   });
 }
 
 function syncThemeIcon() {
   const prefersDark = matchMedia("(prefers-color-scheme: dark)").matches;
   const dark = (document.documentElement.dataset.theme || (prefersDark ? "dark" : "light")) === "dark";
-  $("themeBtn").querySelector("use").setAttribute("href", dark ? "#i-sun" : "#i-moon");
+  document.querySelectorAll(".theme-btn use").forEach((use) => {
+    use.setAttribute("href", dark ? "#i-sun" : "#i-moon");
+  });
 }
 
 /* ── Landing ───────────────────────────────────────────────── */

@@ -46,20 +46,29 @@
 <!-- ───────────────────────── Landing ───────────────────────── -->
 <section id="landing" class="landing" hidden>
   <header class="landing-nav">
-    <div class="brand">
+    <a class="brand" href="/" aria-label="Clipboard home">
       <span class="brand-mark"><svg><use href="#i-clipboard"/></svg></span>
       <span class="brand-name">Clipboard</span>
-    </div>
+    </a>
     <div class="spacer"></div>
-    <button class="btn btn-ghost btn-sm ext-guide-btn" title="Download Browser Extension">
-      <svg><use href="#i-download"/></svg> Extension
-    </button>
-    <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
-      <svg><use href="#i-shield"/></svg> Secrets Vault
-    </button>
-    <button class="btn btn-ghost btn-sm auth-btn" title="Account">
-      <svg><use href="#i-user"/></svg> <span class="auth-label">Sign In</span>
-    </button>
+    <div class="nav-actions">
+      <button class="icon-btn theme-btn" id="themeBtnLanding" aria-label="Toggle theme" title="Toggle theme">
+        <svg><use href="#i-moon"/></svg>
+      </button>
+      <button class="btn btn-ghost btn-sm ext-guide-btn not-mobile-sm" title="Download Browser Extension">
+        <svg><use href="#i-download"/></svg> <span class="not-mobile">Extension</span>
+      </button>
+      <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
+        <svg><use href="#i-shield"/></svg> <span class="not-mobile">Vault</span>
+      </button>
+      <button class="btn btn-ghost btn-sm auth-btn" title="Account">
+        <span class="auth-icon-wrap">
+          <svg><use href="#i-user"/></svg>
+          <span class="auth-indicator" hidden></span>
+        </span>
+        <span class="auth-label not-mobile">Sign In</span>
+      </button>
+    </div>
   </header>
 
   <div class="landing-inner">
@@ -139,19 +148,25 @@
 
     <div class="spacer"></div>
 
-    <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
-      <svg><use href="#i-shield"/></svg> <span class="not-mobile">Vault</span>
-    </button>
-    <button class="btn btn-ghost btn-sm auth-btn" title="Account">
-      <svg><use href="#i-user"/></svg> <span class="auth-label not-mobile">Account</span>
-    </button>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
+        <svg><use href="#i-shield"/></svg> <span class="not-mobile">Vault</span>
+      </button>
+      <button class="btn btn-ghost btn-sm auth-btn" title="Account">
+        <span class="auth-icon-wrap">
+          <svg><use href="#i-user"/></svg>
+          <span class="auth-indicator" hidden></span>
+        </span>
+        <span class="auth-label not-mobile">Account</span>
+      </button>
 
-    <span class="peers not-mobile" id="peersChip" title="Connected devices">
-      <svg><use href="#i-devices"/></svg><span id="peerCount">0</span>
-    </span>
-    <button class="icon-btn" id="qrBtn" aria-label="Show a QR code for this room"><svg><use href="#i-qr"/></svg></button>
-    <button class="icon-btn" id="shareBtn" aria-label="Share this room"><svg><use href="#i-share"/></svg></button>
-    <button class="icon-btn" id="themeBtn" aria-label="Toggle theme"><svg><use href="#i-moon"/></svg></button>
+      <span class="peers not-mobile" id="peersChip" title="Connected devices">
+        <svg><use href="#i-devices"/></svg><span id="peerCount">0</span>
+      </span>
+      <button class="icon-btn not-mobile-sm" id="qrBtn" aria-label="Show a QR code for this room" title="QR Code"><svg><use href="#i-qr"/></svg></button>
+      <button class="icon-btn not-mobile-sm" id="shareBtn" aria-label="Share this room" title="Share link"><svg><use href="#i-share"/></svg></button>
+      <button class="icon-btn theme-btn" id="themeBtn" aria-label="Toggle theme" title="Toggle theme"><svg><use href="#i-moon"/></svg></button>
+    </div>
   </header>
 
   <aside class="sidebar" id="sidebar">

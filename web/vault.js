@@ -42,14 +42,23 @@ async function checkCurrentUser(api) {
 function updateAuthUI() {
   const authLabels = document.querySelectorAll(".auth-label");
   const authBtns = document.querySelectorAll(".auth-btn");
+  const authDots = document.querySelectorAll(".auth-indicator");
 
   if (vaultState.user) {
     const display = vaultState.user.github_user || vaultState.user.email.split("@")[0];
     authLabels.forEach((el) => (el.textContent = display));
-    authBtns.forEach((btn) => btn.setAttribute("title", `Signed in as ${vaultState.user.email}`));
+    authBtns.forEach((btn) => {
+      btn.setAttribute("title", `Signed in as ${vaultState.user.email}`);
+      btn.classList.add("is-authenticated");
+    });
+    authDots.forEach((dot) => (dot.hidden = false));
   } else {
     authLabels.forEach((el) => (el.textContent = "Sign In"));
-    authBtns.forEach((btn) => btn.setAttribute("title", "Sign in or create account"));
+    authBtns.forEach((btn) => {
+      btn.setAttribute("title", "Sign in or create account");
+      btn.classList.remove("is-authenticated");
+    });
+    authDots.forEach((dot) => (dot.hidden = true));
   }
 }
 
