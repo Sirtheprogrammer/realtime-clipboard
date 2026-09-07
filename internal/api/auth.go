@@ -29,22 +29,19 @@ type authResponse struct {
 	User  models.User `json:"user"`
 }
 
-func (s *Server) authenticate(r *http.Request) (models.User, error) {
-	token := ""
-
-	// 1. Authorization: Bearer <token>
+func (s *Server) extractToken(r *http.Request) string {
 	authHeader := r.Header.Get("Authorization")
 	if strings.HasPrefix(authHeader, "Bearer ") {
-		token = strings.TrimPrefix(authHeader, "Bearer ")
+		return strings.TrimPrefix(authHeader, "Bearer ")
 	}
-
-	// 2. Cookie fallback
-	if token == "" {
-		if cookie, err := r.Cookie(sessionCookieName); err == nil {
-			token = cookie.Value
-		}
+	if cookie, err := r.Cookie(sessionCookieName); err == nil {
+		return cookie.Value
 	}
+	return ""
+}
 
+func (s *Server) authenticate(r *http.Request) (models.User, error) {
+	token := s.extractToken(r)
 	if token == "" {
 		return models.User{}, store.ErrNotFound
 	}
@@ -151,17 +148,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	token := ""
-	authHeader := r.Header.Get("Authorization")
-	if strings.HasPrefix(authHeader, "Bearer ") {
-		token = strings.TrimPrefix(authHeader, "Bearer ")
-	}
-	if token == "" {
-		if cookie, err := r.Cookie(sessionCookieName); err == nil {
-			token = cookie.Value
-		}
-	}
-
+	token := s.extractToken(r)
 	if token != "" {
 		_ = s.store.DeleteSession(r.Context(), token)
 	}
@@ -176,7 +163,10 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": user})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"user":  user,
+		"token": s.extractToken(r),
+	})
 }
 
 // GitHub OAuth

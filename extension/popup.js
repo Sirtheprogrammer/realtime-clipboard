@@ -24,7 +24,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (state.token) {
     await verifyAuth();
   } else {
-    showAuthView();
+    // Attempt automatic cookie sync in case user logged in via web/GitHub
+    await attemptCookieSync();
+  }
+});
+
+// Re-check when popup gains focus (e.g. returning from GitHub OAuth tab)
+window.addEventListener("focus", async () => {
+  if (!state.token) {
+    await attemptCookieSync();
   }
 });
 
@@ -75,6 +83,30 @@ async function detectActiveTab() {
 }
 
 /* ───────────────────────── Auth ───────────────────────── */
+
+async function attemptCookieSync() {
+  try {
+    const res = await fetch(`${state.serverUrl}/api/auth/me`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.token && data.user) {
+        state.token = data.token;
+        state.user = data.user;
+        await chrome.storage.local.set({ token: data.token });
+        showVaultView();
+        await loadDomainSecrets();
+        await loadAllSecrets();
+        showToast("Connected to active session!");
+        return;
+      }
+    }
+  } catch {
+    // silent
+  }
+  showAuthView();
+}
 
 async function verifyAuth() {
   try {
@@ -330,6 +362,12 @@ function wireUI() {
     } finally {
       btn.disabled = false;
     }
+  });
+
+  // GitHub Auth in extension
+  $("extGithubAuthBtn").addEventListener("click", () => {
+    chrome.tabs.create({ url: `${state.serverUrl}/api/auth/github` });
+    showToast("Authorize with GitHub in the new tab");
   });
 
   // Open web vault
