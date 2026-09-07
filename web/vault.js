@@ -208,6 +208,21 @@ function wireVaultEvents(api, toast) {
     });
   });
 
+  // Extension Guide Modal wiring
+  document.querySelectorAll(".ext-guide-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const m = $("extModal");
+      if (m) m.hidden = false;
+    });
+  });
+  $("extModalClose")?.addEventListener("click", () => {
+    const m = $("extModal");
+    if (m) m.hidden = true;
+  });
+  $("extModal")?.addEventListener("click", (e) => {
+    if (e.target === $("extModal")) $("extModal").hidden = true;
+  });
+
   $("vaultClose")?.addEventListener("click", closeVaultModal);
   $("vaultModal")?.addEventListener("click", (e) => {
     if (e.target === $("vaultModal")) closeVaultModal();

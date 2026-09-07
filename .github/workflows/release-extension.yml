@@ -1,0 +1,78 @@
+name: Release Browser Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+      - 'ext-v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release Tag Name (e.g. v1.1.0 or ext-v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      is_prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set Release Tag
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG_NAME=${{ github.event.inputs.tag_name }}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      - name: Package Extension for Chromium (Chrome, Brave, Edge)
+        run: |
+          mkdir -p dist
+          cd extension
+          zip -r ../dist/clipboard-vault-chrome.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store"
+          cd ..
+
+      - name: Package Extension for Firefox
+        run: |
+          cd extension
+          zip -r ../dist/clipboard-vault-firefox.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store"
+          cp ../dist/clipboard-vault-firefox.zip ../dist/clipboard-vault-firefox.xpi
+          cd ..
+
+      - name: Generate Checksums
+        run: |
+          cd dist
+          sha256sum clipboard-vault-chrome.zip clipboard-vault-firefox.zip clipboard-vault-firefox.xpi > checksums.txt
+          cat checksums.txt
+          cd ..
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [ "${{ github.event.inputs.is_prerelease }}" = "true" ]; then
+            PRERELEASE_FLAG="--prerelease"
+          fi
+
+          # If release already exists, upload assets to it; otherwise create release
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME exists. Uploading assets..."
+            gh release upload "$TAG_NAME" dist/* --clobber
+          else
+            echo "Creating release $TAG_NAME..."
+            gh release create "$TAG_NAME" dist/* \
+              --title "Clipboard Vault Extension $TAG_NAME" \
+              --notes "Automated release of Clipboard Vault browser extensions for Google Chrome, Brave, Microsoft Edge, and Mozilla Firefox." \
+              $PRERELEASE_FLAG
+          fi

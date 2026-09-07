@@ -6,7 +6,7 @@
 const $ = (id) => document.getElementById(id);
 
 let state = {
-  serverUrl: "http://localhost:8080",
+  serverUrl: "https://clip.codesky.tech",
   token: null,
   user: null,
   activeTab: null,

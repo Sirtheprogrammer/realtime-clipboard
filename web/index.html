@@ -51,6 +51,9 @@
       <span class="brand-name">Clipboard</span>
     </div>
     <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm ext-guide-btn" title="Download Browser Extension">
+      <svg><use href="#i-download"/></svg> Extension
+    </button>
     <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
       <svg><use href="#i-shield"/></svg> Secrets Vault
     </button>
@@ -101,6 +104,13 @@
         <div class="feat-content">
           <b>Encrypted Secret Store</b>
           <span>Save passwords, API keys and credentials with AES-256-GCM envelope encryption.</span>
+        </div>
+      </li>
+      <li>
+        <div class="feat-icon"><svg><use href="#i-download"/></svg></div>
+        <div class="feat-content">
+          <b>Browser Extensions</b>
+          <span>Autofill credentials in Chrome, Firefox, Brave, and Edge. <a href="/api/extension/download" download="clipboard-vault-extension.zip" class="link-inline">Download extension (.zip)</a></span>
         </div>
       </li>
     </ul>
@@ -355,7 +365,12 @@
         <b>Browser Extension Available</b>
         <span>Save and autofill credentials directly in Chrome, Firefox, Brave, and Edge.</span>
       </div>
-      <code class="ext-load-hint">Load unpacked from /extension</code>
+      <div class="ext-banner-actions">
+        <a href="/api/extension/download" class="btn btn-primary btn-sm" download="clipboard-vault-extension.zip">
+          <svg><use href="#i-download"/></svg> Download Extension (.zip)
+        </a>
+        <button type="button" class="btn btn-ghost btn-sm ext-guide-btn">Setup Guide</button>
+      </div>
     </div>
 
     <!-- Secrets List -->
@@ -365,6 +380,61 @@
       <div class="empty-icon"><svg><use href="#i-shield"/></svg></div>
       <h3>No secrets saved</h3>
       <p>Click "New Secret" to securely store passwords, tokens, or private notes.</p>
+    </div>
+  </div>
+</div>
+
+
+<!-- Extension Setup Guide Modal -->
+<div class="modal" id="extModal" hidden>
+  <div class="modal-card modal-card-lg" role="dialog" aria-modal="true" aria-labelledby="extModalTitle">
+    <header class="modal-head">
+      <div>
+        <h2 id="extModalTitle" class="flex-align-gap"><svg><use href="#i-download"/></svg> Browser Extension Setup</h2>
+        <span class="vault-encryption-badge">MANIFEST V3 • CHROME &amp; FIREFOX</span>
+      </div>
+      <button class="icon-btn" id="extModalClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="ext-guide-body">
+      <p class="lede">Save, autofill, and synchronize encrypted passwords, API keys, and credentials directly in your browser.</p>
+
+      <div class="ext-download-box">
+        <a href="/api/extension/download" class="btn btn-primary btn-lg" download="clipboard-vault-extension.zip">
+          <svg><use href="#i-download"/></svg> Download Extension (.zip)
+        </a>
+        <a href="https://github.com/Sirtheprogrammer/realtime-clipboard/releases" target="_blank" rel="noopener" class="btn btn-ghost btn-lg">
+          <svg><use href="#i-github"/></svg> GitHub Releases
+        </a>
+      </div>
+
+      <div class="ext-instructions-grid">
+        <div class="guide-card">
+          <div class="guide-card-head">
+            <b>Chrome, Brave &amp; Edge</b>
+            <span class="chip-sub">Chromium</span>
+          </div>
+          <ol class="guide-steps">
+            <li>Download &amp; unzip <code>clipboard-vault-extension.zip</code> to a folder.</li>
+            <li>Open <code>chrome://extensions</code> (or <code>edge://extensions</code>).</li>
+            <li>Turn on <b>Developer mode</b> (toggle switch in the top-right corner).</li>
+            <li>Click <b>Load unpacked</b> and select the unzipped directory.</li>
+          </ol>
+        </div>
+
+        <div class="guide-card">
+          <div class="guide-card-head">
+            <b>Mozilla Firefox</b>
+            <span class="chip-sub">Gecko</span>
+          </div>
+          <ol class="guide-steps">
+            <li>Download &amp; unzip <code>clipboard-vault-extension.zip</code> to a folder.</li>
+            <li>Navigate to <code>about:debugging#/runtime/this-firefox</code>.</li>
+            <li>Click <b>Load Temporary Add-on...</b>.</li>
+            <li>Select the <code>manifest.json</code> file inside the unzipped folder.</li>
+          </ol>
+        </div>
+      </div>
     </div>
   </div>
 </div>

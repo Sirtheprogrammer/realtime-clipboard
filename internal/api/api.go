@@ -66,6 +66,10 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("PUT /api/secrets/{id}", s.handleUpdateSecret)
 	mux.HandleFunc("DELETE /api/secrets/{id}", s.handleDeleteSecret)
 
+	// Extension Download
+	mux.HandleFunc("GET /api/extension/download", s.handleExtensionDownload)
+	mux.HandleFunc("GET /extension.zip", s.handleExtensionDownload)
+
 	s.mountStatic(mux)
 
 	return s.withRecovery(s.withCORS(s.withLogging(mux)))
