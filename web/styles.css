@@ -1493,6 +1493,41 @@ kbd {
 }
 .gh-badge svg { width: 14px; height: 14px; }
 
+/* Account Password Security Card */
+.auth-security-box {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+.security-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.security-box-head b {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+.auth-subform {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+.badge-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.badge-success {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+
 /* ───────────────────────── Vault Toolbar & Cards ───────────────────────── */
 .vault-encryption-badge {
  display: inline-block;

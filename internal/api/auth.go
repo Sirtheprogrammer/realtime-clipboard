@@ -408,3 +408,64 @@ func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge ti
 		SameSite: http.SameSiteLaxMode,
 	})
 }
+
+type setPasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+func (s *Server) handleSetPassword(w http.ResponseWriter, r *http.Request) {
+	user, err := s.authenticate(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	var req setPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	newPass := strings.TrimSpace(req.NewPassword)
+	if len(newPass) < 8 {
+		writeError(w, http.StatusBadRequest, "new password must be at least 8 characters")
+		return
+	}
+
+	// If user already has a password set, require and verify the current password
+	if user.PasswordHash != "" {
+		if req.CurrentPassword == "" {
+			writeError(w, http.StatusBadRequest, "current password is required")
+			return
+		}
+		if !crypto.VerifyPassword(req.CurrentPassword, user.PasswordHash) {
+			writeError(w, http.StatusUnauthorized, "current password is incorrect")
+			return
+		}
+	}
+
+	// Hash new password
+	hash, err := crypto.HashPassword(newPass)
+	if err != nil {
+		s.log.Error("hash password failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	if err := s.store.UpdateUserPassword(r.Context(), user.ID, hash); err != nil {
+		s.log.Error("update user password failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "failed to update password")
+		return
+	}
+
+	user.PasswordHash = hash
+	user.HasPassword = true
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":       "ok",
+		"message":      "Password saved successfully",
+		"has_password": true,
+		"user":         user,
+	})
+}

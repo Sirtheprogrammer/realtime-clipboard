@@ -141,6 +141,48 @@ function wireAuthEvents(api, toast) {
       toast(err.message, "error");
     }
   });
+
+  // Set / Change Password
+  $("setPasswordForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const curPwd = $("accCurrentPassword") ? $("accCurrentPassword").value : "";
+    const newPwd = $("accNewPassword").value;
+    const confirmPwd = $("accConfirmPassword").value;
+    const saveBtn = $("savePasswordBtn");
+
+    if (newPwd !== confirmPwd) {
+      toast("Passwords do not match", "error");
+      return;
+    }
+    if (newPwd.length < 8) {
+      toast("Password must be at least 8 characters", "error");
+      return;
+    }
+
+    saveBtn.disabled = true;
+    try {
+      const res = await api("/api/auth/password", {
+        method: "POST",
+        body: JSON.stringify({
+          current_password: curPwd,
+          new_password: newPwd,
+        }),
+      });
+
+      toast(res.message || "Password saved successfully!");
+      if (vaultState.user) {
+        vaultState.user.has_password = true;
+      }
+      $("accNewPassword").value = "";
+      $("accConfirmPassword").value = "";
+      if ($("accCurrentPassword")) $("accCurrentPassword").value = "";
+      openAuthModal();
+    } catch (err) {
+      toast(err.message, "error");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
 }
 
 function openAuthModal() {
@@ -158,6 +200,32 @@ function openAuthModal() {
       $("authProfileGitHubUser").textContent = `@${vaultState.user.github_user}`;
     } else {
       ghRow.hidden = true;
+    }
+
+    // Refresh password security card state
+    const hasPwd = !!vaultState.user.has_password;
+    const badge = $("pwdStatusBadge");
+    const desc = $("pwdStatusDesc");
+    const curGroup = $("currentPwdGroup");
+    const newLabel = $("newPwdLabel");
+    const saveBtn = $("savePasswordBtn");
+
+    if (badge && desc && curGroup && newLabel && saveBtn) {
+      if (hasPwd) {
+        badge.textContent = "Protected";
+        badge.className = "chip-sub badge-success";
+        desc.textContent = "You can sign in using your email & password or via GitHub OAuth.";
+        curGroup.hidden = false;
+        newLabel.textContent = "New Password (min 8 characters)";
+        saveBtn.innerHTML = '<svg width="14" height="14"><use href="#i-shield"/></svg> Change Password';
+      } else {
+        badge.textContent = "Not Set (GitHub Only)";
+        badge.className = "chip-sub badge-warning";
+        desc.textContent = "You signed in via GitHub. Set an account password to also sign in directly with your email & password on mobile and browser extensions.";
+        curGroup.hidden = true;
+        newLabel.textContent = "Account Password (min 8 characters)";
+        saveBtn.innerHTML = '<svg width="14" height="14"><use href="#i-shield"/></svg> Set Account Password';
+      }
     }
   } else {
     // Show login tabs

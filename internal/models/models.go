@@ -50,6 +50,7 @@ type User struct {
 	ID           string    `json:"id"`
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
+	HasPassword  bool      `json:"has_password"`
 	GitHubID     string    `json:"github_id,omitempty"`
 	GitHubUser   string    `json:"github_user,omitempty"`
 	AvatarURL    string    `json:"avatar_url,omitempty"`

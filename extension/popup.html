@@ -65,6 +65,9 @@
     <button type="button" id="extImportBtn" class="ext-btn ext-btn-ghost sm full">Import Browser Passwords (.csv)</button>
     <input type="file" id="extCsvFile" accept=".csv,text/csv" hidden>
   </div>
+  <div class="settings-pwd-row" style="margin-top: 8px;">
+    <button type="button" id="extOpenPwdBtn" class="ext-btn ext-btn-ghost sm full">Set / Change Account Password</button>
+  </div>
 </section>
 
 <!-- Logged Out View -->
@@ -180,6 +183,37 @@
       <div class="modal-buttons">
         <button type="button" id="cancelSecretBtn" class="ext-btn ext-btn-ghost sm">Cancel</button>
         <button type="submit" id="saveSecretBtn" class="ext-btn ext-btn-primary sm">Save Encrypted</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Set / Change Account Password Modal -->
+<div id="extPasswordModal" class="ext-modal" hidden style="display: none;">
+  <div class="ext-modal-card">
+    <div class="ext-modal-head">
+      <b id="extPwdModalTitle">Account Password</b>
+      <button type="button" id="closePwdModal" class="icon-btn" aria-label="Close">&times;</button>
+    </div>
+    <p class="auth-hint" id="extPwdModalHint">Set a password to authenticate with email on any device.</p>
+    <form id="extSetPwdForm">
+      <div id="extCurrentPwdGroup" hidden>
+        <label class="ext-label">
+          <span>Current Password</span>
+          <input type="password" id="extCurPwdInput" class="ext-input" placeholder="••••••••">
+        </label>
+      </div>
+      <label class="ext-label">
+        <span id="extNewPwdLabel">Account Password (min 8 characters)</span>
+        <input type="password" id="extNewPwdInput" class="ext-input" required minlength="8" placeholder="••••••••">
+      </label>
+      <label class="ext-label">
+        <span>Confirm Password</span>
+        <input type="password" id="extConfirmPwdInput" class="ext-input" required minlength="8" placeholder="••••••••">
+      </label>
+      <div class="modal-buttons">
+        <button type="button" id="cancelPwdModalBtn" class="ext-btn ext-btn-ghost sm">Cancel</button>
+        <button type="submit" id="saveExtPwdBtn" class="ext-btn ext-btn-primary sm">Save Password</button>
       </div>
     </form>
   </div>

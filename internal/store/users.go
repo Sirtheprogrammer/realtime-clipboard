@@ -36,6 +36,7 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash, githubID, g
 	if scannedGhID != nil {
 		u.GitHubID = *scannedGhID
 	}
+	u.HasPassword = u.PasswordHash != ""
 	return u, nil
 }
 
@@ -57,6 +58,7 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, 
 	if scannedGhID != nil {
 		u.GitHubID = *scannedGhID
 	}
+	u.HasPassword = u.PasswordHash != ""
 	return u, nil
 }
 
@@ -78,6 +80,7 @@ func (s *Store) GetUserByID(ctx context.Context, id string) (models.User, error)
 	if scannedGhID != nil {
 		u.GitHubID = *scannedGhID
 	}
+	u.HasPassword = u.PasswordHash != ""
 	return u, nil
 }
 
@@ -99,6 +102,7 @@ func (s *Store) GetUserByGitHubID(ctx context.Context, githubID string) (models.
 	if scannedGhID != nil {
 		u.GitHubID = *scannedGhID
 	}
+	u.HasPassword = u.PasswordHash != ""
 	return u, nil
 }
 
@@ -153,4 +157,18 @@ func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return tag.RowsAffected(), nil
+}
+
+func (s *Store) UpdateUserPassword(ctx context.Context, userID, passwordHash string) error {
+	res, err := s.pool.Exec(ctx, `
+		UPDATE users
+		SET password_hash = $1, updated_at = now()
+		WHERE id = $2`, passwordHash, userID)
+	if err != nil {
+		return fmt.Errorf("update user password: %w", err)
+	}
+	if res.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

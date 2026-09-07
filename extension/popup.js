@@ -518,6 +518,64 @@ function wireUI() {
     showToast("Generated strong password");
   });
 
+
+  // Password modal trigger
+  $("extOpenPwdBtn")?.addEventListener("click", () => {
+    $("settingsPanel").hidden = true;
+    openPwdModal();
+  });
+  $("closePwdModal")?.addEventListener("click", closePwdModal);
+  $("cancelPwdModalBtn")?.addEventListener("click", closePwdModal);
+  $("extPasswordModal")?.addEventListener("click", (e) => {
+    if (e.target === $("extPasswordModal")) closePwdModal();
+  });
+
+  // Set / Change Password Form
+  $("extSetPwdForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const curPwd = $("extCurPwdInput") ? $("extCurPwdInput").value : "";
+    const newPwd = $("extNewPwdInput").value;
+    const confirmPwd = $("extConfirmPwdInput").value;
+    const saveBtn = $("saveExtPwdBtn");
+
+    if (newPwd !== confirmPwd) {
+      showToast("Passwords do not match");
+      return;
+    }
+    if (newPwd.length < 8) {
+      showToast("Password must be at least 8 characters");
+      return;
+    }
+
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch(`${state.serverUrl}/api/auth/password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${state.token}`,
+        },
+        body: JSON.stringify({
+          current_password: curPwd,
+          new_password: newPwd,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update password");
+
+      if (state.user) {
+        state.user.has_password = true;
+      }
+      showToast("Password saved successfully!");
+      closePwdModal();
+    } catch (err) {
+      showToast(err.message);
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
   // Save new secret form
   $("newSecretForm").addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -685,4 +743,46 @@ function parseClientCSV(text) {
   }
 
   return results;
+}
+
+function openPwdModal() {
+  const modal = $("extPasswordModal");
+  if (!modal) return;
+  if (!state.token) {
+    showToast("Please sign in first");
+    return;
+  }
+  const hasPwd = state.user && state.user.has_password;
+  const curGroup = $("extCurrentPwdGroup");
+  const newLabel = $("extNewPwdLabel");
+  const saveBtn = $("saveExtPwdBtn");
+  const hint = $("extPwdModalHint");
+
+  if (curGroup && newLabel && saveBtn) {
+    if (hasPwd) {
+      curGroup.hidden = false;
+      newLabel.textContent = "New Password (min 8 characters)";
+      saveBtn.textContent = "Change Password";
+      if (hint) hint.textContent = "Enter your current password to set a new password.";
+    } else {
+      curGroup.hidden = true;
+      newLabel.textContent = "Account Password (min 8 characters)";
+      saveBtn.textContent = "Set Account Password";
+      if (hint) hint.textContent = "Set a password to authenticate with email + password on any device.";
+    }
+  }
+
+  modal.hidden = false;
+  modal.style.display = "grid";
+}
+
+function closePwdModal() {
+  const modal = $("extPasswordModal");
+  if (modal) {
+    modal.hidden = true;
+    modal.style.display = "none";
+  }
+  if ($("extCurPwdInput")) $("extCurPwdInput").value = "";
+  if ($("extNewPwdInput")) $("extNewPwdInput").value = "";
+  if ($("extConfirmPwdInput")) $("extConfirmPwdInput").value = "";
 }

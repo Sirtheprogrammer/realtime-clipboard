@@ -54,6 +54,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("POST /api/auth/register", s.handleRegister)
 	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
 	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	mux.HandleFunc("POST /api/auth/password", s.handleSetPassword)
 	mux.HandleFunc("GET /api/auth/me", s.handleMe)
 	mux.HandleFunc("GET /api/auth/github", s.handleGitHubAuth)
 	mux.HandleFunc("GET /api/auth/github/callback", s.handleGitHubCallback)

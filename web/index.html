@@ -330,6 +330,40 @@
         </div>
       </div>
       <p class="hint">Your account protects your encrypted Secret Store and synchronizes with browser extensions.</p>
+      <!-- Password Security Card -->
+      <div class="auth-security-box">
+        <div class="security-box-head">
+          <div class="flex-align-gap">
+            <svg width="15" height="15"><use href="#i-shield"/></svg>
+            <b id="pwdStatusTitle">Account Password</b>
+          </div>
+          <span class="chip-sub badge-warning" id="pwdStatusBadge">Not Set</span>
+        </div>
+        <p class="hint" id="pwdStatusDesc">
+          Set an account password so you can sign in with your email and password directly on other devices and browser extensions without needing GitHub.
+        </p>
+
+        <form id="setPasswordForm" class="auth-subform">
+          <div id="currentPwdGroup" hidden>
+            <label class="form-label">
+              <span>Current Password</span>
+              <input type="password" id="accCurrentPassword" class="input full" placeholder="••••••••" autocomplete="current-password">
+            </label>
+          </div>
+          <label class="form-label">
+            <span id="newPwdLabel">Account Password (min 8 characters)</span>
+            <input type="password" id="accNewPassword" class="input full" required minlength="8" placeholder="••••••••" autocomplete="new-password">
+          </label>
+          <label class="form-label">
+            <span>Confirm Password</span>
+            <input type="password" id="accConfirmPassword" class="input full" required minlength="8" placeholder="••••••••" autocomplete="new-password">
+          </label>
+          <button type="submit" class="btn btn-secondary full" id="savePasswordBtn">
+            <svg><use href="#i-shield"/></svg> Set Account Password
+          </button>
+        </form>
+      </div>
+
       <div class="auth-profile-actions">
         <button class="btn btn-danger full" id="authSignOutBtn">Sign Out</button>
       </div>
