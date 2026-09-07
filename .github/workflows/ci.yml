@@ -69,11 +69,17 @@ jobs:
       - name: Package Browser Extensions
         run: |
           mkdir -p dist
-          # Package Chromium extension (Chrome, Edge, Brave, Opera)
-          (cd extension && zip -r ../dist/clipboard-vault-chrome.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store")
-          
-          # Package Firefox extension (zip and xpi)
-          (cd extension && zip -r ../dist/clipboard-vault-firefox.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store")
+          # Package Chromium extension (Chrome, Edge, Brave, Opera: service_worker only)
+          mkdir -p /tmp/chrome-ext
+          cp -r extension/* /tmp/chrome-ext/
+          jq 'del(.background.scripts)' extension/manifest.json > /tmp/chrome-ext/manifest.json
+          (cd /tmp/chrome-ext && zip -r ../../dist/clipboard-vault-chrome.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store")
+
+          # Package Firefox extension (AMO compliant: scripts only, no service_worker)
+          mkdir -p /tmp/firefox-ext
+          cp -r extension/* /tmp/firefox-ext/
+          jq 'del(.background.service_worker)' extension/manifest.json > /tmp/firefox-ext/manifest.json
+          (cd /tmp/firefox-ext && zip -r ../../dist/clipboard-vault-firefox.zip . -x "*.go" -x "*_test.go" -x "*.DS_Store")
           cp dist/clipboard-vault-firefox.zip dist/clipboard-vault-firefox.xpi
 
       - name: Build Server Binaries
@@ -98,57 +104,33 @@ jobs:
           path: dist/*
           retention-days: 30
 
-      - name: Publish or Update GitHub Release
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          name: "Clipboard Vault ${{ env.TAG_NAME }}"
+          body: |
+            ## Automated Release ${{ env.TAG_NAME }}
+
+            ### Included Artifacts
+            - **Firefox Extension**: `clipboard-vault-firefox.zip` / `clipboard-vault-firefox.xpi` (AMO Compliant)
+            - **Chrome / Chromium Extension**: `clipboard-vault-chrome.zip` (Manifest V3)
+            - **Linux amd64 / arm64**: `clipboard-server-linux-amd64`, `clipboard-server-linux-arm64`
+            - **Windows x64**: `clipboard-server-windows-amd64.exe`
+            - **macOS Apple Silicon**: `clipboard-server-darwin-arm64`
+
+            Verify file checksums using `checksums.txt`.
+          files: |
+            dist/clipboard-vault-chrome.zip
+            dist/clipboard-vault-firefox.zip
+            dist/clipboard-vault-firefox.xpi
+            dist/clipboard-server-linux-amd64
+            dist/clipboard-server-linux-arm64
+            dist/clipboard-server-windows-amd64.exe
+            dist/clipboard-server-darwin-arm64
+            dist/checksums.txt
+          draft: false
+          prerelease: false
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Push tag if it does not already exist
-          if ! git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            git tag "$TAG_NAME"
-            git push origin "$TAG_NAME" || true
-          fi
-
-          cat << 'EOF' > release_notes.md
-          ### Clipboard Vault Release
-
-          #### Included Packages:
-          - **Browser Extension (Chromium)**: `clipboard-vault-chrome.zip` (Chrome, Edge, Brave, Arc, Opera)
-          - **Browser Extension (Firefox)**: `clipboard-vault-firefox.zip` and `clipboard-vault-firefox.xpi`
-          - **Pre-compiled Server Binaries**:
-            - Linux AMD64: `clipboard-server-linux-amd64`
-            - Linux ARM64: `clipboard-server-linux-arm64`
-            - Windows AMD64: `clipboard-server-windows-amd64.exe`
-            - macOS Apple Silicon: `clipboard-server-darwin-arm64`
-
-          #### Highlights:
-          - Realtime peer clipboard synchronization
-          - Hardware-grade AES-256-GCM envelope encrypted Password & Secret Vault
-          - Automatic login & API key detection across GitHub, OpenAI, Claude, Stripe, and web forms
-          - In-browser automatic extension updates
-          EOF
-
-          # 1. Create or update versioned release
-          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Release $TAG_NAME exists. Uploading fresh assets..."
-            gh release upload "$TAG_NAME" dist/* --clobber
-          else
-            echo "Creating versioned release $TAG_NAME..."
-            gh release create "$TAG_NAME" dist/* \
-              --title "Clipboard Vault $TAG_NAME" \
-              --notes-file release_notes.md
-          fi
-
-          # 2. Also maintain a rolling 'latest' release for direct permanent links
-          if gh release view "latest" >/dev/null 2>&1; then
-            echo "Updating rolling 'latest' release assets..."
-            gh release upload "latest" dist/* --clobber
-          else
-            echo "Creating rolling 'latest' release..."
-            gh release create "latest" dist/* \
-              --title "Clipboard Vault (Latest Build)" \
-              --notes "Rolling release reflecting the latest commit on main branch." \
-              --prerelease=false
-          fi
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

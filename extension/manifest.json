@@ -20,10 +20,9 @@
     "http://*/*",
     "https://*/*"
   ],
-  "update_url": "https://clip.codesky.tech/api/extension/updates.xml",
   "background": {
-    "service_worker": "background.js",
-    "scripts": ["background.js"]
+    "scripts": ["background.js"],
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {
@@ -47,7 +46,11 @@
     "gecko": {
       "id": "vault@clip.codesky.tech",
       "strict_min_version": "109.0",
-      "update_url": "https://clip.codesky.tech/api/extension/updates.json"
+      "data_collection_permissions": {
+        "required": [
+          "authenticationInfo"
+        ]
+      }
     }
   }
 }

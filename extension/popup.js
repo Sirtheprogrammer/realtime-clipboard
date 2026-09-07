@@ -203,7 +203,7 @@ function showVaultView() {
 
 async function loadDomainSecrets() {
   if (!state.activeDomain) {
-    $("matchingSecretsList").innerHTML = "";
+    $("matchingSecretsList").replaceChildren();
     $("noMatchingSecrets").hidden = false;
     return;
   }
@@ -225,7 +225,7 @@ async function loadDomainSecrets() {
 function renderMatchingSecrets() {
   const container = $("matchingSecretsList");
   const empty = $("noMatchingSecrets");
-  container.innerHTML = "";
+  container.replaceChildren();
 
   if (state.matchingSecrets.length === 0) {
     empty.hidden = false;
@@ -236,34 +236,52 @@ function renderMatchingSecrets() {
   state.matchingSecrets.forEach((sec) => {
     const card = document.createElement("div");
     card.className = "cred-card";
-    card.innerHTML = `
-      <div class="cred-top">
-        <b class="cred-title">${escapeHtml(sec.title)}</b>
-        <span class="cred-user">${escapeHtml(sec.username || "—")}</span>
-      </div>
-      <div class="cred-actions">
-        <button class="ext-btn ext-btn-primary sm act-autofill">Autofill</button>
-        <button class="ext-btn ext-btn-ghost sm act-copy-user" title="Copy username">User</button>
-        <button class="ext-btn ext-btn-ghost sm act-copy-pass" title="Copy password">Pass</button>
-      </div>
-    `;
 
-    // Autofill
-    card.querySelector(".act-autofill").addEventListener("click", () => {
+    const top = document.createElement("div");
+    top.className = "cred-top";
+    const title = document.createElement("b");
+    title.className = "cred-title";
+    title.textContent = sec.title;
+    const user = document.createElement("span");
+    user.className = "cred-user";
+    user.textContent = sec.username || "—";
+    top.appendChild(title);
+    top.appendChild(user);
+
+    const actions = document.createElement("div");
+    actions.className = "cred-actions";
+
+    const autofillBtn = document.createElement("button");
+    autofillBtn.className = "ext-btn ext-btn-primary sm act-autofill";
+    autofillBtn.textContent = "Autofill";
+    autofillBtn.addEventListener("click", () => {
       triggerAutofill(sec.username, sec.value);
     });
 
-    // Copy user
-    card.querySelector(".act-copy-user").addEventListener("click", async () => {
+    const copyUserBtn = document.createElement("button");
+    copyUserBtn.className = "ext-btn ext-btn-ghost sm act-copy-user";
+    copyUserBtn.title = "Copy username";
+    copyUserBtn.textContent = "User";
+    copyUserBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(sec.username || "");
       showToast("Username copied!");
     });
 
-    // Copy pass
-    card.querySelector(".act-copy-pass").addEventListener("click", async () => {
+    const copyPassBtn = document.createElement("button");
+    copyPassBtn.className = "ext-btn ext-btn-ghost sm act-copy-pass";
+    copyPassBtn.title = "Copy password";
+    copyPassBtn.textContent = "Pass";
+    copyPassBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(sec.value || "");
       showToast("Password copied!");
     });
+
+    actions.appendChild(autofillBtn);
+    actions.appendChild(copyUserBtn);
+    actions.appendChild(copyPassBtn);
+
+    card.appendChild(top);
+    card.appendChild(actions);
 
     container.appendChild(card);
   });
@@ -316,7 +334,7 @@ async function loadAllSecrets() {
 
 function renderAllSecrets(filterQuery) {
   const container = $("allSecretsList");
-  container.innerHTML = "";
+  container.replaceChildren();
 
   const filtered = state.allSecrets.filter((sec) => {
     if (!filterQuery) return true;
@@ -331,20 +349,30 @@ function renderAllSecrets(filterQuery) {
   filtered.slice(0, 15).forEach((sec) => {
     const item = document.createElement("div");
     item.className = "search-item";
-    item.innerHTML = `
-      <div class="search-item-info">
-        <b>${escapeHtml(sec.title)}</b>
-        <span>${escapeHtml(sec.username || sec.url || "—")}</span>
-      </div>
-      <div class="search-item-tools">
-        <button class="ext-btn ext-btn-ghost sm act-copy-pass" title="Copy Secret">Copy</button>
-      </div>
-    `;
 
-    item.querySelector(".act-copy-pass").addEventListener("click", async () => {
+    const info = document.createElement("div");
+    info.className = "search-item-info";
+    const b = document.createElement("b");
+    b.textContent = sec.title;
+    const span = document.createElement("span");
+    span.textContent = sec.username || sec.url || "—";
+    info.appendChild(b);
+    info.appendChild(span);
+
+    const tools = document.createElement("div");
+    tools.className = "search-item-tools";
+    const copyPassBtn = document.createElement("button");
+    copyPassBtn.className = "ext-btn ext-btn-ghost sm act-copy-pass";
+    copyPassBtn.title = "Copy Secret";
+    copyPassBtn.textContent = "Copy";
+    copyPassBtn.addEventListener("click", async () => {
       await navigator.clipboard.writeText(sec.value || "");
       showToast(`Copied ${sec.title}`);
     });
+    tools.appendChild(copyPassBtn);
+
+    item.appendChild(info);
+    item.appendChild(tools);
 
     container.appendChild(item);
   });

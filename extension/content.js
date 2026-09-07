@@ -434,7 +434,12 @@
       display: flex;
       justify-content: space-between;
     `;
-    header.innerHTML = `<span>🔑 Clipboard Vault</span><span>Saved API Keys</span>`;
+    const headerTitle = document.createElement("span");
+    headerTitle.textContent = "🔑 Clipboard Vault";
+    const headerSub = document.createElement("span");
+    headerSub.textContent = "Saved API Keys";
+    header.appendChild(headerTitle);
+    header.appendChild(headerSub);
     dropdown.appendChild(header);
 
     keys.forEach((key) => {
@@ -449,10 +454,16 @@
         transition: background 0.1s;
       `;
       const masked = key.value ? `${key.value.slice(0, 7)}••••••••${key.value.slice(-4)}` : "••••••••";
-      item.innerHTML = `
-        <b style="font-size: 12px; color: #ffffff;">${escapeHtml(key.title)}</b>
-        <span style="font-size: 10.5px; color: #8b92a5; font-family: ui-monospace, monospace;">${escapeHtml(masked)}</span>
-      `;
+      const keyTitle = document.createElement("b");
+      keyTitle.style.cssText = "font-size: 12px; color: #ffffff;";
+      keyTitle.textContent = key.title;
+
+      const keyVal = document.createElement("span");
+      keyVal.style.cssText = "font-size: 10.5px; color: #8b92a5; font-family: ui-monospace, monospace;";
+      keyVal.textContent = masked;
+
+      item.appendChild(keyTitle);
+      item.appendChild(keyVal);
       item.addEventListener("mouseenter", () => { item.style.background = "#232733"; });
       item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
       item.addEventListener("mousedown", (e) => {
@@ -511,7 +522,12 @@
         display: flex;
         justify-content: space-between;
       `;
-      header.innerHTML = `<span>Clipboard Vault</span><span>${secrets.length} Accounts</span>`;
+      const headerTitle = document.createElement("span");
+      headerTitle.textContent = "Clipboard Vault";
+      const headerCount = document.createElement("span");
+      headerCount.textContent = `${secrets.length} Accounts`;
+      header.appendChild(headerTitle);
+      header.appendChild(headerCount);
       dropdown.appendChild(header);
 
       secrets.forEach((sec) => {
@@ -525,10 +541,16 @@
           gap: 2px;
           transition: background 0.1s;
         `;
-        item.innerHTML = `
-          <b style="font-size: 12px; color: #ffffff;">${escapeHtml(sec.username || sec.title)}</b>
-          <span style="font-size: 10.5px; color: #8b92a5;">${escapeHtml(sec.title || "Saved Password")}</span>
-        `;
+        const credUser = document.createElement("b");
+        credUser.style.cssText = "font-size: 12px; color: #ffffff;";
+        credUser.textContent = sec.username || sec.title;
+
+        const credTitle = document.createElement("span");
+        credTitle.style.cssText = "font-size: 10.5px; color: #8b92a5;";
+        credTitle.textContent = sec.title || "Saved Password";
+
+        item.appendChild(credUser);
+        item.appendChild(credTitle);
         item.addEventListener("mouseenter", () => { item.style.background = "#232733"; });
         item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
         item.addEventListener("mousedown", (e) => {
@@ -695,10 +717,12 @@
       transition: opacity 0.2s, transform 0.2s;
     `;
 
-    toast.innerHTML = `
-      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
-      <span>${escapeHtml(message)}</span>
-    `;
+    const dot = document.createElement("span");
+    dot.style.cssText = "display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;";
+    const msgText = document.createElement("span");
+    msgText.textContent = message;
+    toast.appendChild(dot);
+    toast.appendChild(msgText);
 
     document.body.appendChild(toast);
 
