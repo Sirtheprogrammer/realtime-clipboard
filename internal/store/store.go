@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"database/sql"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -15,16 +16,22 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool   *pgxpool.Pool
+	sqlite *sql.DB
 }
 
 func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+
+func NewSQLite(db *sql.DB) *Store { return &Store{sqlite: db} }
 
 const itemColumns = `id, room_code, kind, content, file_name, mime_type,
 	size_bytes, width, height, device, blob_path, created_at, expires_at`
 
 // TouchRoom creates the room if it is new and refreshes its last_seen stamp.
 func (s *Store) TouchRoom(ctx context.Context, code string) (models.Room, error) {
+	if s.sqlite != nil {
+		return s.touchRoomSQLite(ctx, code)
+	}
 	var r models.Room
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO rooms (code) VALUES ($1)
@@ -38,6 +45,9 @@ func (s *Store) TouchRoom(ctx context.Context, code string) (models.Room, error)
 }
 
 func (s *Store) CreateItem(ctx context.Context, it models.Item) (models.Item, error) {
+	if s.sqlite != nil {
+		return s.createItemSQLite(ctx, it)
+	}
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO items (id, room_code, kind, content, file_name, mime_type,
 			size_bytes, width, height, device, blob_path, expires_at)
@@ -53,6 +63,9 @@ func (s *Store) CreateItem(ctx context.Context, it models.Item) (models.Item, er
 }
 
 func (s *Store) ListItems(ctx context.Context, roomCode string, limit int) ([]models.Item, error) {
+	if s.sqlite != nil {
+		return s.listItemsSQLite(ctx, roomCode, limit)
+	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+itemColumns+`
 		FROM items
@@ -76,6 +89,9 @@ func (s *Store) ListItems(ctx context.Context, roomCode string, limit int) ([]mo
 }
 
 func (s *Store) GetItem(ctx context.Context, id string) (models.Item, error) {
+	if s.sqlite != nil {
+		return s.getItemSQLite(ctx, id)
+	}
 	row := s.pool.QueryRow(ctx, `SELECT `+itemColumns+` FROM items WHERE id = $1`, id)
 	it, err := scanItem(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -86,6 +102,9 @@ func (s *Store) GetItem(ctx context.Context, id string) (models.Item, error) {
 
 // DeleteItem removes one item and returns it so the caller can unlink its blob.
 func (s *Store) DeleteItem(ctx context.Context, roomCode, id string) (models.Item, error) {
+	if s.sqlite != nil {
+		return s.deleteItemSQLite(ctx, roomCode, id)
+	}
 	row := s.pool.QueryRow(ctx, `
 		DELETE FROM items WHERE id = $1 AND room_code = $2
 		RETURNING `+itemColumns, id, roomCode)
@@ -98,6 +117,9 @@ func (s *Store) DeleteItem(ctx context.Context, roomCode, id string) (models.Ite
 
 // ClearRoom empties a room and returns the blob paths that are now orphaned.
 func (s *Store) ClearRoom(ctx context.Context, roomCode string) ([]string, error) {
+	if s.sqlite != nil {
+		return s.clearRoomSQLite(ctx, roomCode)
+	}
 	rows, err := s.pool.Query(ctx,
 		`DELETE FROM items WHERE room_code = $1 RETURNING blob_path`, roomCode)
 	if err != nil {
@@ -109,6 +131,9 @@ func (s *Store) ClearRoom(ctx context.Context, roomCode string) ([]string, error
 
 // DeleteExpired drops items past their TTL and returns their blob paths.
 func (s *Store) DeleteExpired(ctx context.Context) ([]string, error) {
+	if s.sqlite != nil {
+		return s.deleteExpiredSQLite(ctx)
+	}
 	rows, err := s.pool.Query(ctx,
 		`DELETE FROM items WHERE expires_at <= now() RETURNING blob_path`)
 	if err != nil {
@@ -123,6 +148,9 @@ func (s *Store) DeleteExpired(ctx context.Context) ([]string, error) {
 // age floor keeps it away from uploads still in flight, whose chunks are
 // written before the item row that will reference them.
 func (s *Store) DeleteOrphanBlobChunks(ctx context.Context) (int64, error) {
+	if s.sqlite != nil {
+		return 0, nil
+	}
 	tag, err := s.pool.Exec(ctx, `
 		DELETE FROM blob_chunks c
 		WHERE c.created_at < now() - interval '1 hour'
@@ -135,6 +163,9 @@ func (s *Store) DeleteOrphanBlobChunks(ctx context.Context) (int64, error) {
 
 // DeleteEmptyRooms prunes rooms nobody has touched and that hold no items.
 func (s *Store) DeleteEmptyRooms(ctx context.Context, idleFor time.Duration) error {
+	if s.sqlite != nil {
+		return s.deleteEmptyRoomsSQLite(ctx, idleFor)
+	}
 	_, err := s.pool.Exec(ctx, `
 		DELETE FROM rooms r
 		WHERE r.last_seen < now() - $1::interval
@@ -144,6 +175,9 @@ func (s *Store) DeleteEmptyRooms(ctx context.Context, idleFor time.Duration) err
 }
 
 func (s *Store) RoomStats(ctx context.Context, roomCode string) (count int, bytes int64, err error) {
+	if s.sqlite != nil {
+		return s.roomStatsSQLite(ctx, roomCode)
+	}
 	err = s.pool.QueryRow(ctx, `
 		SELECT count(*), coalesce(sum(size_bytes), 0)
 		FROM items WHERE room_code = $1 AND expires_at > now()`, roomCode).

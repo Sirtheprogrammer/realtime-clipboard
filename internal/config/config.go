@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -17,9 +18,16 @@ const (
 	BackendPostgres = "postgres"
 )
 
+// Database drivers.
+const (
+	DriverPostgres = "postgres"
+	DriverSQLite   = "sqlite"
+)
+
 // Config holds every knob the server reads from the environment.
 type Config struct {
 	Addr           string
+	DatabaseDriver string
 	DatabaseURL    string
 	BlobBackend    string
 	BlobDir        string
@@ -64,12 +72,30 @@ func Load() Config {
 	dyno := os.Getenv("DYNO")
 
 	cfg.Addr = listenAddr()
-	cfg.DatabaseURL, cfg.Notes = databaseURL(cfg.Notes)
+	cfg.DatabaseDriver, cfg.DatabaseURL, cfg.Notes = databaseConfig(cfg.Notes)
 	cfg.BlobBackend, cfg.Notes = blobBackend(dyno, cfg.Notes)
 	cfg.InstanceID = instanceID(dyno)
 	cfg.SecretMasterKey, cfg.Notes = masterKey(cfg.Notes)
 
 	return cfg
+}
+
+func databaseConfig(notes []string) (string, string, []string) {
+	raw := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	if raw == "" {
+		sqlitePath := env("SQLITE_PATH", "./data/clipboard.db")
+		notes = append(notes, "No DATABASE_URL configured; running in zero-config mode with embedded SQLite ("+sqlitePath+")")
+		return DriverSQLite, sqlitePath, notes
+	}
+
+	if strings.HasPrefix(raw, "postgres://") || strings.HasPrefix(raw, "postgresql://") {
+		u, notes2 := databaseURL(notes)
+		return DriverPostgres, u, notes2
+	}
+
+	clean := strings.TrimPrefix(raw, "sqlite://")
+	notes = append(notes, "Using SQLite database at "+clean)
+	return DriverSQLite, clean, notes
 }
 
 func masterKey(notes []string) ([32]byte, []string) {
@@ -86,6 +112,28 @@ func masterKey(notes []string) ([32]byte, []string) {
 		hash := sha256.Sum256([]byte(raw))
 		return hash, notes
 	}
+
+	// Persistent key file for zero-config mode
+	keyPath := env("KEY_FILE", "./data/master.key")
+	if data, err := os.ReadFile(keyPath); err == nil && len(data) >= 32 {
+		var k [32]byte
+		copy(k[:], data[:32])
+		notes = append(notes, "Loaded persistent master encryption key from "+keyPath)
+		return k, notes
+	}
+
+	// Auto-generate a secure random 32-byte key and persist it
+	var randKey [32]byte
+	if _, err := rand.Read(randKey[:]); err == nil {
+		if dir := filepath.Dir(keyPath); dir != "" && dir != "." {
+			_ = os.MkdirAll(dir, 0o700)
+		}
+		if err := os.WriteFile(keyPath, randKey[:], 0o600); err == nil {
+			notes = append(notes, "Generated and saved persistent master encryption key to "+keyPath)
+			return randKey, notes
+		}
+	}
+
 	// Fallback for local development
 	const devKey = "clipboard-dev-secret-master-key-v1"
 	hash := sha256.Sum256([]byte(devKey))
@@ -110,7 +158,6 @@ func listenAddr() string {
 // is what "require" means to pgx.
 func databaseURL(notes []string) (string, []string) {
 	raw := env("DATABASE_URL", "postgres://clipboard:clipboard@localhost:5432/clipboard?sslmode=disable")
-
 	u, err := url.Parse(raw)
 	if err != nil {
 		return raw, notes
@@ -136,7 +183,7 @@ func isLocalHost(host string) bool {
 }
 
 // blobBackend decides where uploaded bytes live. Disk is the right default for
-// Docker Compose, where /data is a volume. A Heroku dyno has only an ephemeral
+// Docker Compose or SQLite, where /data is local/persistent. A Heroku dyno has only an ephemeral
 // filesystem that is wiped on every restart and deploy, so files there have to
 // go in Postgres instead.
 func blobBackend(dyno string, notes []string) (string, []string) {
@@ -181,19 +228,25 @@ func env(key, fallback string) string {
 }
 
 func envInt64(key string, fallback int64) int64 {
-	if v := os.Getenv(key); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-			return n
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return fallback
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 func envDuration(key string, fallback time.Duration) time.Duration {
-	if v := os.Getenv(key); v != "" {
-		if d, err := time.ParseDuration(v); err == nil {
-			return d
-		}
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
 	}
-	return fallback
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return fallback
+	}
+	return d
 }

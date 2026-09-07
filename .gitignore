@@ -1,4 +1,9 @@
 /data/
+**/data/
 /.env
 /clipboard
 /clipboard.exe
+clipboard-server*
+*.exe
+*.db
+*.sqlite

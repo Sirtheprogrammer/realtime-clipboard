@@ -38,31 +38,57 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := database.Connect(ctx, cfg.DatabaseURL, cfg.MaxDBConns)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-	log.Info("connected to postgres")
+	var st *store.Store
+	var blobs blob.Store
+	var bus *events.Bus
 
-	blobs, err := newBlobStore(cfg, pool)
-	if err != nil {
-		return err
+	if cfg.DatabaseDriver == config.DriverSQLite {
+		db, err := database.OpenSQLite(ctx, cfg.DatabaseURL)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		log.Info("connected to embedded sqlite", "path", cfg.DatabaseURL)
+
+		st = store.NewSQLite(db)
+
+		diskBlobs, err := blob.NewDisk(cfg.BlobDir)
+		if err != nil {
+			return err
+		}
+		blobs = diskBlobs
+		log.Info("blob storage ready", "backend", blobs.Describe())
+	} else {
+		pool, err := database.Connect(ctx, cfg.DatabaseURL, cfg.MaxDBConns)
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+		log.Info("connected to postgres")
+
+		st = store.New(pool)
+
+		var errBlob error
+		blobs, errBlob = newBlobStore(cfg, pool)
+		if errBlob != nil {
+			return errBlob
+		}
+		log.Info("blob storage ready", "backend", blobs.Describe())
+
+		bus = events.New(pool, cfg.InstanceID, log)
 	}
-	log.Info("blob storage ready", "backend", blobs.Describe())
 
 	h := hub.New(log)
-	bus := events.New(pool, cfg.InstanceID, log)
 
-	srv := api.NewServer(cfg, store.New(pool), blobs, h, bus, log)
+	srv := api.NewServer(cfg, st, blobs, h, bus, log)
 	srv.StartJanitor(ctx)
-	srv.StartEvents(ctx)
+	if bus != nil {
+		srv.StartEvents(ctx)
+	}
 
 	httpServer := &http.Server{
-		Addr:    cfg.Addr,
-		Handler: srv.Routes(),
-		// No ReadTimeout or WriteTimeout: uploads can be slow and websockets
-		// are long-lived. The header timeout still fends off slowloris.
+		Addr:              cfg.Addr,
+		Handler:           srv.Routes(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
@@ -70,7 +96,7 @@ func run(log *slog.Logger) error {
 	errCh := make(chan error, 1)
 	go func() {
 		log.Info("clipboard listening",
-			"addr", cfg.Addr, "instance", cfg.InstanceID, "retention", cfg.Retention.String())
+			"addr", cfg.Addr, "instance", cfg.InstanceID, "retention", cfg.Retention.String(), "driver", cfg.DatabaseDriver)
 		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 		}

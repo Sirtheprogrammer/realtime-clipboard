@@ -13,6 +13,9 @@ import (
 )
 
 func (s *Store) CreateUser(ctx context.Context, email, passwordHash, githubID, githubUser, avatarURL string) (models.User, error) {
+	if s.sqlite != nil {
+		return s.createUserSQLite(ctx, email, passwordHash, githubID, githubUser, avatarURL)
+	}
 	id := uuid.New().String()
 	now := time.Now().UTC()
 
@@ -41,6 +44,9 @@ func (s *Store) CreateUser(ctx context.Context, email, passwordHash, githubID, g
 }
 
 func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+	if s.sqlite != nil {
+		return s.getUserByEmailSQLite(ctx, email)
+	}
 	var u models.User
 	var scannedGhID *string
 	err := s.pool.QueryRow(ctx, `
@@ -63,6 +69,9 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, 
 }
 
 func (s *Store) GetUserByID(ctx context.Context, id string) (models.User, error) {
+	if s.sqlite != nil {
+		return s.getUserByIDSQLite(ctx, id)
+	}
 	var u models.User
 	var scannedGhID *string
 	err := s.pool.QueryRow(ctx, `
@@ -115,6 +124,9 @@ func (s *Store) LinkGitHubAccount(ctx context.Context, userID, githubID, githubU
 }
 
 func (s *Store) CreateSession(ctx context.Context, userID, token string, expiresAt time.Time) (models.Session, error) {
+	if s.sqlite != nil {
+		return s.createSessionSQLite(ctx, userID, token, expiresAt)
+	}
 	var sess models.Session
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO sessions (token, user_id, expires_at)
@@ -130,6 +142,9 @@ func (s *Store) CreateSession(ctx context.Context, userID, token string, expires
 }
 
 func (s *Store) GetSession(ctx context.Context, token string) (models.Session, error) {
+	if s.sqlite != nil {
+		return s.getSessionSQLite(ctx, token)
+	}
 	var sess models.Session
 	err := s.pool.QueryRow(ctx, `
 		SELECT token, user_id, created_at, expires_at
@@ -147,11 +162,17 @@ func (s *Store) GetSession(ctx context.Context, token string) (models.Session, e
 }
 
 func (s *Store) DeleteSession(ctx context.Context, token string) error {
+	if s.sqlite != nil {
+		return s.deleteSessionSQLite(ctx, token)
+	}
 	_, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE token = $1`, token)
 	return err
 }
 
 func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
+	if s.sqlite != nil {
+		return s.deleteExpiredSessionsSQLite(ctx)
+	}
 	tag, err := s.pool.Exec(ctx, `DELETE FROM sessions WHERE expires_at <= now()`)
 	if err != nil {
 		return 0, err
@@ -160,6 +181,9 @@ func (s *Store) DeleteExpiredSessions(ctx context.Context) (int64, error) {
 }
 
 func (s *Store) UpdateUserPassword(ctx context.Context, userID, passwordHash string) error {
+	if s.sqlite != nil {
+		return s.updateUserPasswordSQLite(ctx, userID, passwordHash)
+	}
 	res, err := s.pool.Exec(ctx, `
 		UPDATE users
 		SET password_hash = $1, updated_at = now()

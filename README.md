@@ -1,15 +1,28 @@
-# Clipboard
+# Clipboard & Vault
 
-A realtime shared clipboard. Open the same room on your laptop and your phone,
+A realtime shared clipboard and encrypted credential vault. Open the same room on your laptop and your phone,
 paste text, a screenshot or a file on one, and it shows up on the other
 immediately — over a websocket, with no refresh and no sign-in.
 
-Go backend · vanilla HTML/CSS/JS progressive web app · Postgres · Docker Compose.
+Go backend · vanilla HTML/CSS/JS progressive web app · SQLite (Zero-Config) / Postgres · Docker Compose · Chrome/Edge/Brave Extension.
 
-```
-docker compose up -d --build
-# open http://localhost:8080
-```
+---
+
+## Zero-Config Standalone Mode (No Postgres or Docker Required)
+
+You can run the entire Clipboard & Vault server **out of the box with zero configuration**!
+The server automatically uses an embedded pure-Go SQLite database and creates persistent encryption keys and blob storage in `./data`.
+
+### One-Click Startup
+- **Windows (Command Prompt / Explorer)**: Double-click or run `start-server.bat`
+- **Windows (PowerShell)**: Run `.\start-server.ps1`
+- **Linux / macOS**: Run `./start-server.sh`
+- **Using Go**:
+  ```bash
+  go run ./cmd/server
+  ```
+
+Open **`http://localhost:8080`** in your browser. All features (realtime clipboard, encrypted password manager, browser extension autofill, and file sharing) work locally with zero setup!
 
 ---
 
@@ -17,6 +30,9 @@ docker compose up -d --build
 
 | | |
 |---|---|
+| **Zero-Config SQLite** | Run as a single standalone executable without installing PostgreSQL or Docker. |
+| **Encrypted Vault** | Store logins and secrets encrypted with AES-GCM-256 using auto-persisted master keys. |
+| **Extension & Autofill** | Companion browser extension auto-detects and autofills logins seamlessly. |
 | **Text** | `Ctrl+V` anywhere on the page and it is shared instantly. Paste into the composer instead if you want to edit first (`Ctrl+Enter` sends). |
 | **Screenshots & images** | Paste straight from the snipping tool. Thumbnails render inline; click for a lightbox; "Copy image" puts it back on your system clipboard. |
 | **Files** | Drag and drop anywhere, or use the Files button. Per-file progress bars, resumable-friendly streaming, 100 MB default cap. |
@@ -33,7 +49,10 @@ can read and write, so treat it as a password — see [Security](#security).
 
 ## Running it
 
-### Docker Compose (the intended path)
+### Zero-Config (Recommended for Local / Desktop)
+Run `./start-server.bat` (Windows) or `./start-server.sh` (Linux/macOS).
+
+### Docker Compose (Multi-container with Postgres)
 
 ```bash
 cp .env.example .env      # optional: set a real POSTGRES_PASSWORD
@@ -68,6 +87,8 @@ Note that browsers restrict the Clipboard API to *secure contexts*:
 pasting **into** the page and "Copy" falling back to a text selection still
 work, but one-click "Copy image" needs HTTPS. Put it behind a TLS terminator
 (Caddy, Traefik, a tunnel) for the full experience.
+
+---
 
 ### Heroku
 
@@ -124,192 +145,3 @@ heroku ps:scale web=2
 
 A **Deploy to Heroku** button works too — `app.json` provisions Postgres and
 sets sensible defaults. Point its `repository` field at your fork first.
-
-<details>
-<summary>Deploying with the Go buildpack instead of a container</summary>
-
-`Procfile` and the `+heroku` directives in `go.mod` support this path:
-
-```bash
-heroku create your-clipboard --buildpack heroku/go
-heroku addons:create heroku-postgresql:essential-0
-heroku config:set BLOB_BACKEND=postgres
-git push heroku main
-```
-
-The container path is the recommended one: it reuses the tested image, and it
-does not depend on the buildpack offering the Go version in `go.mod`.
-</details>
-
-### Local development without Docker
-
-```bash
-docker compose up -d db                      # just Postgres
-export DATABASE_URL='postgres://clipboard:clipboard@localhost:5432/clipboard?sslmode=disable'
-go run ./cmd/server
-```
-
-(That needs the `db` port published — uncomment the `ports` block in
-`docker-compose.yml`.)
-
----
-
-## Configuration
-
-Every setting is an environment variable; see `.env.example`.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `ADDR` | `:8080` | Listen address. |
-| `DATABASE_URL` | local Postgres | Connection string. |
-| `BLOB_BACKEND` | `disk` | `disk` (a volume) or `postgres` (rows in the database). Defaults to `postgres` on a Heroku dyno. |
-| `BLOB_DIR` | `./data/blobs` | Where uploaded files are written with the `disk` backend (`/data/blobs` in the image). |
-| `DB_MAX_CONNS` | `10` | Postgres connections per instance; minimum 2. |
-| `WEB_DIR` | `./web` | Static dashboard files. |
-| `MAX_UPLOAD_BYTES` | `104857600` | Largest single upload (100 MiB). |
-| `RETENTION` | `24h` | How long items survive before the janitor deletes them. |
-| `SWEEP_INTERVAL` | `5m` | How often the janitor runs. |
-| `ALLOWED_ORIGINS` | `*` | Comma-separated origins allowed to open a websocket. |
-| `PORT` | — | If set, overrides `ADDR`. This is how Heroku assigns a port. |
-| `INSTANCE_ID` | random | Names this instance in logs and cross-instance events. The dyno name on Heroku. |
-
----
-
-## How it fits together
-
-```
-browser ──ws──┐
-              ├─► hub (rooms → clients) ──► broadcast to every peer in the room
-browser ──ws──┘         ▲
-                        │
-browser ──HTTP POST /upload ──► blob store (volume)  +  Postgres (metadata)
-```
-
-- **Text, deletes and clears travel over the websocket.** No HTTP round trip, so
-  a paste lands on the other device in one hop.
-- **Files go over HTTP** as a streaming multipart upload — nothing is buffered in
-  memory, and the browser gets real progress events. When the upload finishes the
-  server broadcasts the new item over the socket, so every tab renders it at once.
-- **Postgres holds metadata, the volume holds bytes.** Large pastes never go
-  through the database.
-- **The socket is the source of truth.** On connect the server replays the room's
-  history in the `welcome` frame, so a reconnect after a laptop wakes up
-  self-heals without any client-side diffing.
-- **The hub is in-process, so instances talk to each other.** With more than one
-  container or dyno serving a room, two people can land on different instances.
-  Each instance relays room activity to the others over Postgres
-  `LISTEN`/`NOTIFY` — no Redis, no extra add-on. `item.created` carries only the
-  id, because a pasted item can be larger than a NOTIFY payload allows; the
-  receiving instance loads it from the database.
-
-### Layout
-
-```
-cmd/server/         entrypoint: config, wiring, graceful shutdown
-internal/config/    environment parsing
-internal/database/  pgx pool, retrying connect, embedded schema.sql
-internal/models/    Item and Room
-internal/store/     all SQL
-internal/blob/      payload storage: a disk volume, or Postgres rows where
-                    the filesystem is ephemeral
-internal/events/    cross-instance fan-out over Postgres LISTEN/NOTIFY
-internal/hub/       websocket rooms, fan-out, ping/pong, slow-client eviction
-internal/api/       HTTP routes, upload handling, socket handler, janitor
-web/                dashboard: index.html, styles.css, app.js, sw.js, manifest
-e2e/                end-to-end tests against a running server
-
-Dockerfile          multi-stage build, used by Compose and Heroku alike
-docker-compose.yml  app + Postgres
-  ...cluster.yml    overlay adding a second instance, for the multi-instance tests
-heroku.yml          Heroku container build
-app.json            Heroku Deploy button / review apps
-Procfile            Go buildpack path only
-```
-
-### Websocket protocol
-
-Every frame is `{"type": "...", "payload": {...}}`.
-
-Client → server: `text.create` · `item.delete` · `room.clear` ·
-`presence.refresh` · `ping`
-
-Server → client: `welcome` (client id, device name, item history, limits) ·
-`item.created` · `item.deleted` · `room.cleared` · `presence` · `error` · `pong`
-
-### HTTP API
-
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/api/health` | Liveness. |
-| `POST` | `/api/rooms` | Create a room, returns its code. |
-| `GET` | `/api/rooms/{code}` | Room, items, peers, stats, limits. |
-| `POST` | `/api/rooms/{code}/items` | Create a text item (JSON). |
-| `POST` | `/api/rooms/{code}/upload` | Multipart file upload. |
-| `DELETE` | `/api/rooms/{code}/items` | Clear the room. |
-| `DELETE` | `/api/rooms/{code}/items/{id}` | Delete one item. |
-| `GET` | `/api/rooms/{code}/qr.svg` | QR code for the room's URL, as SVG. |
-| `GET` | `/api/items/{id}/raw` | Stream inline (used by `<img>`). |
-| `GET` | `/api/items/{id}/download` | Stream as an attachment. |
-| `GET` | `/ws?room=&device=` | Websocket. |
-
----
-
-## Tests
-
-```bash
-go test ./...                                          # unit tests, no services needed
-
-docker compose up -d                                   # then, against the live stack:
-CLIPBOARD_E2E_URL=http://localhost:8080 go test ./e2e/...
-```
-
-The e2e suite opens two websockets and asserts that what one "device" pastes
-arrives at the other: text, links, images (byte-for-byte), arbitrary files,
-history replay for a late joiner, delete and clear fan-out, presence, and room
-isolation. It skips itself when `CLIPBOARD_E2E_URL` is unset.
-
-The QR code has its own tests: the rendered SVG is parsed back into a module
-matrix and compared against the encoder's, and the URL construction is checked
-across proxy-header combinations. To confirm the output actually scans, dump the
-fixtures and read them with any external decoder:
-
-```bash
-QR_SVG_DUMP_DIR=/tmp/qr go test ./internal/api/ -run TestDumpQRSVGs
-```
-
-Each `qr-N.svg` should decode to the URL in the matching `qr-N.svg.txt`.
-
-To exercise the multi-instance path — two dynos, or several containers behind a
-load balancer — bring up a second instance against the same database:
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.cluster.yml up -d --build
-
-CLIPBOARD_E2E_URL=http://localhost:8080 CLIPBOARD_E2E_URL_B=http://localhost:8081 go test ./e2e/...
-```
-
-That adds five tests covering what only works because of the LISTEN/NOTIFY
-bridge and the Postgres blob backend: a paste on one instance reaching the
-other, an upload to one being readable from the other (including a range request
-that spans a chunk boundary), deletes and clears crossing over, and the presence
-list spanning both.
-
----
-
-## Security
-
-This is deliberately sign-in free, which shapes the threat model:
-
-- **The room code is the only secret.** Codes are 8 characters from a 28-symbol
-  alphabet (~38 bits) drawn from `crypto/rand`. Anyone who learns a code has full
-  read/write access to that room. Don't put a code in a public channel.
-- **Set `ALLOWED_ORIGINS`** to your real hostnames before exposing this publicly;
-  the `*` default accepts websocket upgrades from any origin.
-- **Put it behind TLS.** Room codes and content are otherwise in the clear.
-- Content is escaped as text everywhere in the dashboard (no `innerHTML` for user
-  data), uploads are served with `X-Content-Type-Options: nosniff` and an
-  explicit `Content-Disposition`, and stored blob paths are checked against
-  escaping the storage root.
-- There is no rate limiting. On the open internet, put a reverse proxy in front.
-
-

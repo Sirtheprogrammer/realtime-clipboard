@@ -2,6 +2,8 @@ package config
 
 import (
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -62,6 +64,46 @@ func TestDatabaseURLLeavesExplicitAndLocalAlone(t *testing.T) {
 				t.Errorf("unexpected notes: %v", notes)
 			}
 		})
+	}
+}
+
+func TestZeroConfigSQLite(t *testing.T) {
+	// When DATABASE_URL is unset, it defaults to SQLite
+	t.Setenv("DATABASE_URL", "")
+	driver, dbURL, notes := databaseConfig(nil)
+	if driver != DriverSQLite {
+		t.Errorf("expected driver %q, got %q", DriverSQLite, driver)
+	}
+	if !strings.Contains(dbURL, "clipboard.db") {
+		t.Errorf("expected sqlite path to contain clipboard.db, got %q", dbURL)
+	}
+	if len(notes) == 0 {
+		t.Error("expected note explaining zero-config mode")
+	}
+
+	// Explicit sqlite:// prefix
+	t.Setenv("DATABASE_URL", "sqlite://./custom.db")
+	driver, dbURL, _ = databaseConfig(nil)
+	if driver != DriverSQLite || dbURL != "./custom.db" {
+		t.Errorf("expected driver %q and path './custom.db', got %q %q", DriverSQLite, driver, dbURL)
+	}
+}
+
+func TestPersistentMasterKey(t *testing.T) {
+	tmpDir := t.TempDir()
+	keyFile := filepath.Join(tmpDir, "master.key")
+	t.Setenv("SECRET_MASTER_KEY", "")
+	t.Setenv("KEY_FILE", keyFile)
+
+	key1, _ := masterKey(nil)
+	if _, err := os.Stat(keyFile); err != nil {
+		t.Fatalf("expected key file to be created: %v", err)
+	}
+
+	// Calling masterKey again should load the exact same key
+	key2, _ := masterKey(nil)
+	if key1 != key2 {
+		t.Errorf("expected key1 to equal key2 across loads")
 	}
 }
 

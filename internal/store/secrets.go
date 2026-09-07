@@ -15,6 +15,9 @@ import (
 const secretColumns = `id, user_id, title, kind, username, url, encrypted_value, notes, created_at, updated_at`
 
 func (s *Store) CreateSecret(ctx context.Context, sec models.Secret) (models.Secret, error) {
+	if s.sqlite != nil {
+		return s.createSecretSQLite(ctx, sec)
+	}
 	if sec.ID == "" {
 		sec.ID = uuid.New().String()
 	}
@@ -36,6 +39,9 @@ func (s *Store) CreateSecret(ctx context.Context, sec models.Secret) (models.Sec
 }
 
 func (s *Store) CreateSecretsBatch(ctx context.Context, secrets []models.Secret) (int, error) {
+	if s.sqlite != nil {
+		return s.createSecretsBatchSQLite(ctx, secrets)
+	}
 	if len(secrets) == 0 {
 		return 0, nil
 	}
@@ -78,6 +84,9 @@ func (s *Store) CreateSecretsBatch(ctx context.Context, secrets []models.Secret)
 }
 
 func (s *Store) ListSecrets(ctx context.Context, userID string) ([]models.Secret, error) {
+	if s.sqlite != nil {
+		return s.listSecretsSQLite(ctx, userID)
+	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+secretColumns+`
 		FROM secrets
@@ -100,6 +109,9 @@ func (s *Store) ListSecrets(ctx context.Context, userID string) ([]models.Secret
 }
 
 func (s *Store) GetSecret(ctx context.Context, userID, secretID string) (models.Secret, error) {
+	if s.sqlite != nil {
+		return s.getSecretSQLite(ctx, userID, secretID)
+	}
 	row := s.pool.QueryRow(ctx, `
 		SELECT `+secretColumns+`
 		FROM secrets
@@ -113,6 +125,9 @@ func (s *Store) GetSecret(ctx context.Context, userID, secretID string) (models.
 }
 
 func (s *Store) UpdateSecret(ctx context.Context, sec models.Secret) (models.Secret, error) {
+	if s.sqlite != nil {
+		return s.updateSecretSQLite(ctx, sec)
+	}
 	now := time.Now().UTC()
 	err := s.pool.QueryRow(ctx, `
 		UPDATE secrets
@@ -132,6 +147,9 @@ func (s *Store) UpdateSecret(ctx context.Context, sec models.Secret) (models.Sec
 }
 
 func (s *Store) DeleteSecret(ctx context.Context, userID, secretID string) error {
+	if s.sqlite != nil {
+		return s.deleteSecretSQLite(ctx, userID, secretID)
+	}
 	tag, err := s.pool.Exec(ctx, `
 		DELETE FROM secrets
 		WHERE id = $1 AND user_id = $2`, secretID, userID)
@@ -145,6 +163,9 @@ func (s *Store) DeleteSecret(ctx context.Context, userID, secretID string) error
 }
 
 func (s *Store) SearchSecretsByURL(ctx context.Context, userID, domainOrURL string) ([]models.Secret, error) {
+	if s.sqlite != nil {
+		return s.searchSecretsByURLSQLite(ctx, userID, domainOrURL)
+	}
 	// Match url containing the domain or starting with it
 	pattern := "%" + domainOrURL + "%"
 	rows, err := s.pool.Query(ctx, `

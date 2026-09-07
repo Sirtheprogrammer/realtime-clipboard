@@ -18,33 +18,41 @@ const presenceHeartbeatInterval = 30 * time.Second
 
 func (s *Server) fanoutItemCreated(ctx context.Context, item models.Item) {
 	s.hub.Broadcast(item.RoomCode, "item.created", item, "")
-	// Only the id travels: a pasted item can be far larger than a NOTIFY
-	// payload allows, so the other instances load it from the database.
-	s.bus.Publish(ctx, events.Event{
-		Room:   item.RoomCode,
-		Type:   "item.created",
-		ItemID: item.ID,
-	})
+	if s.bus != nil {
+		// Only the id travels: a pasted item can be far larger than a NOTIFY
+		// payload allows, so the other instances load it from the database.
+		s.bus.Publish(ctx, events.Event{
+			Room:   item.RoomCode,
+			Type:   "item.created",
+			ItemID: item.ID,
+		})
+	}
 }
 
 func (s *Server) fanoutItemDeleted(ctx context.Context, room, id string) {
 	payload := map[string]string{"id": id}
 	s.hub.Broadcast(room, "item.deleted", payload, "")
-	s.bus.Publish(ctx, events.Event{Room: room, Type: "item.deleted", Payload: mustJSON(payload)})
+	if s.bus != nil {
+		s.bus.Publish(ctx, events.Event{Room: room, Type: "item.deleted", Payload: mustJSON(payload)})
+	}
 }
 
 func (s *Server) fanoutRoomCleared(ctx context.Context, room string) {
 	s.hub.Broadcast(room, "room.cleared", map[string]any{}, "")
-	s.bus.Publish(ctx, events.Event{Room: room, Type: "room.cleared"})
+	if s.bus != nil {
+		s.bus.Publish(ctx, events.Event{Room: room, Type: "room.cleared"})
+	}
 }
 
 func (s *Server) publishPresence(ctx context.Context, room string) {
-	peers := s.hub.LocalPeers(room)
-	s.bus.Publish(ctx, events.Event{
-		Room:    room,
-		Type:    "presence",
-		Payload: mustJSON(map[string]any{"peers": peers}),
-	})
+	if s.bus != nil {
+		peers := s.hub.LocalPeers(room)
+		s.bus.Publish(ctx, events.Event{
+			Room:    room,
+			Type:    "presence",
+			Payload: mustJSON(map[string]any{"peers": peers}),
+		})
+	}
 }
 
 /* ── inbound: relay another instance's event to our clients ────────────── */
@@ -58,16 +66,23 @@ func (s *Server) handleRemoteEvent(e events.Event) {
 		if err != nil {
 			// Already deleted, or the row has not landed yet. Either way the
 			// next reconnect replays the room, so this is not fatal.
-			s.log.Warn("relayed item is unavailable", "id", e.ItemID, "err", err)
+			s.log.Debug("load remote item", "id", e.ItemID, "err", err)
 			return
 		}
-		s.hub.Broadcast(e.Room, "item.created", item, "")
+		s.hub.Broadcast(item.RoomCode, "item.created", item, e.Origin)
 
 	case "item.deleted":
-		s.hub.Broadcast(e.Room, "item.deleted", e.Payload, "")
+		var payload struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(e.Payload, &payload); err != nil {
+			s.log.Error("decode remote delete", "err", err)
+			return
+		}
+		s.hub.Broadcast(e.Room, "item.deleted", payload, e.Origin)
 
 	case "room.cleared":
-		s.hub.Broadcast(e.Room, "room.cleared", map[string]any{}, "")
+		s.hub.Broadcast(e.Room, "room.cleared", map[string]any{}, e.Origin)
 
 	case "presence":
 		var payload struct {
@@ -81,7 +96,7 @@ func (s *Server) handleRemoteEvent(e events.Event) {
 		s.hub.BroadcastPresence(e.Room)
 
 	default:
-		s.log.Warn("ignoring unknown remote event", "type", e.Type)
+		s.log.Warn("unknown remote event", "type", e.Type)
 	}
 }
 
@@ -89,6 +104,9 @@ func (s *Server) handleRemoteEvent(e events.Event) {
 // that have gone quiet, so a crashed instance's devices leave the sidebar
 // instead of haunting it.
 func (s *Server) presenceHeartbeat(ctx context.Context) {
+	if s.bus == nil {
+		return
+	}
 	ticker := time.NewTicker(presenceHeartbeatInterval)
 	defer ticker.Stop()
 
@@ -107,10 +125,10 @@ func (s *Server) presenceHeartbeat(ctx context.Context) {
 	}
 }
 
-func mustJSON(v any) json.RawMessage {
-	raw, err := json.Marshal(v)
+func mustJSON(v any) []byte {
+	b, err := json.Marshal(v)
 	if err != nil {
-		return json.RawMessage("null")
+		panic(err)
 	}
-	return raw
+	return b
 }
