@@ -2,11 +2,11 @@
    still renders (empty, with a reconnect banner) when the network is gone.
    Nothing under /api or /ws is ever cached — clipboard content is live data. */
 
-const VERSION = "clipboard-v2";
+const VERSION = "clipboard-v3";
 const SHELL = [
   "/",
-  "/styles.css",
-  "/app.js",
+  "/styles.css?v=3",
+  "/app.js?v=3",
   "/manifest.webmanifest",
   "/icons/icon.svg",
   "/icons/icon-192.png",
@@ -14,17 +14,17 @@ const SHELL = [
 ];
 
 self.addEventListener("install", (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(VERSION)
       .then((cache) => cache.addAll(SHELL))
-      .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
@@ -37,8 +37,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/") || url.pathname === "/ws") return;
 
-  // Navigations: try the network so a deep link to /r/<code> is fresh, and
-  // fall back to the cached shell when offline.
+  // Navigations: try network first
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request).catch(() => caches.match("/", { ignoreSearch: true }))
@@ -46,19 +45,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Static assets: serve from cache, refresh in the background.
+  // Network-first for development & freshness, fallback to cache
   event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            caches.open(VERSION).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(VERSION).then((cache) => cache.put(request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });

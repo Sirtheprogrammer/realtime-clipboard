@@ -86,8 +86,8 @@ func (s *Server) mountStatic(mux *http.ServeMux) {
 			http.ServeFile(w, r, shell)
 			return
 		}
-		if strings.HasSuffix(r.URL.Path, "/sw.js") {
-			noStore(w) // never let a stale worker pin the app
+		if strings.HasSuffix(r.URL.Path, "/sw.js") || strings.HasSuffix(r.URL.Path, ".css") || strings.HasSuffix(r.URL.Path, ".js") {
+			noStore(w) // never let a stale worker or asset pin the app
 		}
 		fileServer.ServeHTTP(w, r)
 	})
