@@ -163,10 +163,23 @@
           if (res.secrets && res.secrets.length > 0) {
             pageSecrets = res.secrets;
             applyAutofill();
+            startAutofillRetry();
           }
         }
       );
     } catch {}
+  }
+
+  function startAutofillRetry() {
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      if (autofilled || attempts > 15) {
+        clearInterval(interval);
+        return;
+      }
+      applyAutofill();
+    }, 350);
   }
 
   function fetchMatchingApiKeys() {
@@ -188,12 +201,10 @@
   }
 
   function checkDynamicForms() {
-    if (document.querySelector('input[type="password"]')) {
-      if (!autofilled && pageSecrets.length > 0) {
-        applyAutofill();
-      } else if (pageSecrets.length === 0) {
-        fetchMatchingCredentials();
-      }
+    if (!autofilled && pageSecrets.length > 0) {
+      applyAutofill();
+    } else if (pageSecrets.length === 0) {
+      fetchMatchingCredentials();
     }
     attachApiKeyInputListeners();
   }
@@ -201,30 +212,78 @@
   // ───────────────────────── Autofill Password ─────────────────────────
 
   function applyAutofill() {
-    const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(isFieldVisible);
-    if (passwordInputs.length === 0) return;
+    if (!pageSecrets || pageSecrets.length === 0) return;
 
-    if (pageSecrets.length === 1) {
-      const sec = pageSecrets[0];
-      const filled = performAutofill(sec.username, sec.value);
-      if (filled) autofilled = true;
-    } else if (pageSecrets.length > 1) {
+    // Pick primary credential (first matching)
+    const sec = pageSecrets[0];
+    let filled = false;
+
+    const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter((el) => {
+      return isFieldVisible(el) || el.offsetWidth > 0 || el.offsetHeight > 0;
+    });
+
+    if (passwordInputs.length > 0) {
+      const targetPassword = passwordInputs[0];
+      if (sec.value && targetPassword.value !== sec.value) {
+        setInputValue(targetPassword, sec.value);
+        filled = true;
+      }
+
+      if (sec.username) {
+        const usernameInput = findUsernameInput(targetPassword);
+        if (usernameInput && usernameInput.value !== sec.username) {
+          setInputValue(usernameInput, sec.username);
+          filled = true;
+        }
+      }
+    } else {
+      // Multi-step login flow (step 1: username/email only, no password input mounted yet)
+      if (sec.username) {
+        const standaloneUser = findStandaloneUsernameInput();
+        if (standaloneUser && !standaloneUser.value) {
+          setInputValue(standaloneUser, sec.username);
+          filled = true;
+        }
+      }
+    }
+
+    if (filled) {
+      autofilled = true;
+    }
+
+    // If multiple credentials exist, attach picker dropdown to easily switch
+    if (pageSecrets.length > 1) {
       attachCredentialPicker(pageSecrets);
     }
   }
 
   function performAutofill(username, password) {
-    const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(isFieldVisible);
-    if (passwordInputs.length === 0) return false;
+    let filled = false;
+    const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter((el) => {
+      return isFieldVisible(el) || el.offsetWidth > 0 || el.offsetHeight > 0;
+    });
 
-    const targetPassword = passwordInputs[0];
-    if (password) setInputValue(targetPassword, password);
-
-    if (username) {
-      const usernameInput = findUsernameInput(targetPassword);
-      if (usernameInput) setInputValue(usernameInput, username);
+    if (passwordInputs.length > 0) {
+      const targetPassword = passwordInputs[0];
+      if (password) {
+        setInputValue(targetPassword, password);
+        filled = true;
+      }
+      if (username) {
+        const usernameInput = findUsernameInput(targetPassword);
+        if (usernameInput) {
+          setInputValue(usernameInput, username);
+          filled = true;
+        }
+      }
+    } else if (username) {
+      const standaloneUser = findStandaloneUsernameInput();
+      if (standaloneUser) {
+        setInputValue(standaloneUser, username);
+        filled = true;
+      }
     }
-    return true;
+    return filled;
   }
 
   function findUsernameInput(targetPassword) {
@@ -238,19 +297,53 @@
       scope.querySelector('input[name*="user" i], input[name*="login" i], input[name*="email" i], input[id*="user" i], input[id*="login" i], input[id*="email" i]') ||
       scope.querySelector('input[type="text"]');
 
-    if (candidate && candidate !== targetPassword && isFieldVisible(candidate)) {
+    if (candidate && candidate !== targetPassword && (isFieldVisible(candidate) || candidate.offsetWidth > 0)) {
       return candidate;
     }
     return null;
   }
 
+  function findStandaloneUsernameInput() {
+    const selectors = [
+      'input[autocomplete="username"]',
+      'input[autocomplete="email"]',
+      'input[type="email"]',
+      'input[name*="user" i]',
+      'input[name*="login" i]',
+      'input[name*="email" i]',
+      'input[id*="user" i]',
+      'input[id*="login" i]',
+      'input[id*="email" i]',
+      'form input[type="text"]',
+    ];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (el && (isFieldVisible(el) || el.offsetWidth > 0)) {
+        return el;
+      }
+    }
+    return null;
+  }
+
   function setInputValue(input, val) {
-    if (!input || input.value === val) return;
-    input.focus();
-    input.value = val;
-    input.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
-    input.blur();
+    if (!input || val === undefined || val === null) return;
+    try {
+      input.focus();
+      // Framework synthetic setter override for React/Vue/Angular
+      const proto = Object.getPrototypeOf(input);
+      const desc = Object.getOwnPropertyDescriptor(proto, "value") ||
+                   Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      if (desc && desc.set) {
+        desc.set.call(input, val);
+      } else {
+        input.value = val;
+      }
+      input.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
+      input.blur();
+    } catch {
+      input.value = val;
+    }
   }
 
   function isFieldVisible(el) {

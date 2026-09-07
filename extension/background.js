@@ -144,17 +144,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           return;
         }
 
-        const res = await fetch(`${serverUrl}/api/secrets/lookup?url=${encodeURIComponent(host)}`, {
+        let res = await fetch(`${serverUrl}/api/secrets/lookup?url=${encodeURIComponent(host)}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!res.ok) {
-          sendResponse({ authenticated: true, secrets: [] });
-          return;
+        let data = res.ok ? await res.json() : { secrets: [] };
+        let secrets = data.secrets || [];
+
+        // Subdomain fallback (e.g. login.github.com -> github.com)
+        if (secrets.length === 0) {
+          const parts = host.split(".");
+          if (parts.length > 2) {
+            const rootDomain = parts.slice(-2).join(".");
+            const rootRes = await fetch(`${serverUrl}/api/secrets/lookup?url=${encodeURIComponent(rootDomain)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (rootRes.ok) {
+              const rootData = await rootRes.json();
+              secrets = rootData.secrets || [];
+            }
+          }
         }
 
-        const data = await res.json();
-        sendResponse({ authenticated: true, secrets: data.secrets || [] });
+        sendResponse({ authenticated: true, secrets });
       } catch (err) {
         sendResponse({ authenticated: false, error: err.message, secrets: [] });
       }

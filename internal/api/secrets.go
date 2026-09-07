@@ -252,6 +252,18 @@ func (s *Server) handleLookupSecrets(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to lookup secrets")
 			return
 		}
+
+		// If no direct domain match and domain has subdomains (e.g. login.github.com -> github.com)
+		if len(secrets) == 0 {
+			parts := strings.Split(domain, ".")
+			if len(parts) > 2 {
+				rootDomain := parts[len(parts)-2] + "." + parts[len(parts)-1]
+				rootSecrets, _ := s.store.SearchSecretsByURL(r.Context(), user.ID, rootDomain)
+				if len(rootSecrets) > 0 {
+					secrets = rootSecrets
+				}
+			}
+		}
 	}
 
 	kindFilter := strings.TrimSpace(r.URL.Query().Get("kind"))

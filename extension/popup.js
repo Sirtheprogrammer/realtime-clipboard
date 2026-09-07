@@ -27,15 +27,26 @@ let state = {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadStoredConfig();
   wireUI();
-  await checkServerHealth();
-  await detectActiveTab();
 
+  // Optimistic render: instantly show vault view if token exists (0ms flash, no login screen!)
   if (state.token) {
-    await verifyAuth();
+    showVaultView();
+    if (state.allSecrets && state.allSecrets.length > 0) {
+      renderAllSecrets("");
+    }
   } else {
     showAuthView();
-    // Attempt automatic cookie sync in case user logged in via web/GitHub
-    await attemptCookieSync();
+  }
+
+  detectActiveTab().then(() => {
+    if (state.token) loadDomainSecrets();
+  });
+  checkServerHealth();
+
+  if (state.token) {
+    verifyAuth();
+  } else {
+    attemptCookieSync();
   }
 });
 
@@ -49,7 +60,15 @@ window.addEventListener("focus", async () => {
 /* ───────────────────────── Config & State ───────────────────────── */
 
 async function loadStoredConfig() {
-  const data = await chrome.storage.local.get(["serverUrl", "token", "pendingSave", "autoFill", "autoSave"]);
+  const data = await chrome.storage.local.get([
+    "serverUrl",
+    "token",
+    "user",
+    "cachedSecrets",
+    "pendingSave",
+    "autoFill",
+    "autoSave",
+  ]);
   if (data.serverUrl && data.serverUrl !== "http://localhost:8080") {
     state.serverUrl = data.serverUrl.replace(/\/+$/, "");
   } else {
@@ -57,6 +76,8 @@ async function loadStoredConfig() {
     await chrome.storage.local.set({ serverUrl: state.serverUrl });
   }
   if (data.token) state.token = data.token;
+  if (data.user) state.user = data.user;
+  if (data.cachedSecrets) state.allSecrets = data.cachedSecrets;
   $("serverUrlInput").value = state.serverUrl;
 
   // Version & Updates
@@ -119,7 +140,7 @@ async function attemptCookieSync() {
       if (data.token && data.user) {
         state.token = data.token;
         state.user = data.user;
-        await chrome.storage.local.set({ token: data.token });
+        await chrome.storage.local.set({ token: data.token, user: data.user });
         showVaultView();
         await loadDomainSecrets();
         await loadAllSecrets();
@@ -130,7 +151,9 @@ async function attemptCookieSync() {
   } catch {
     // silent
   }
-  showAuthView();
+  if (!state.token) {
+    showAuthView();
+  }
 }
 
 async function verifyAuth() {
@@ -138,18 +161,26 @@ async function verifyAuth() {
     const res = await fetch(`${state.serverUrl}/api/auth/me`, {
       headers: { Authorization: `Bearer ${state.token}` },
     });
-    if (!res.ok) throw new Error("Session expired");
+    if (res.status === 401) {
+      state.token = null;
+      state.user = null;
+      state.allSecrets = [];
+      state.matchingSecrets = [];
+      await chrome.storage.local.remove(["token", "user", "cachedSecrets"]);
+      showAuthView();
+      return;
+    }
+    if (!res.ok) return;
 
     const data = await res.json();
     state.user = data.user;
+    await chrome.storage.local.set({ user: data.user });
     showVaultView();
     await loadDomainSecrets();
     await loadAllSecrets();
-  } catch {
-    state.token = null;
-    state.user = null;
-    await chrome.storage.local.remove(["token"]);
-    showAuthView();
+  } catch (err) {
+    // Keep user in vault with cached data on slow / offline network
+    console.warn("verifyAuth network error:", err);
   }
 }
 
@@ -161,7 +192,11 @@ function showAuthView() {
 function showVaultView() {
   $("authView").hidden = true;
   $("vaultView").hidden = false;
-  $("userDisplay").textContent = state.user.github_user ? `@${state.user.github_user}` : state.user.email;
+  if (state.user) {
+    $("userDisplay").textContent = state.user.github_user
+      ? `@${state.user.github_user}`
+      : (state.user.email || "Vault Account");
+  }
 }
 
 /* ───────────────────────── Secrets Loading & Actions ───────────────────────── */
@@ -272,7 +307,8 @@ async function loadAllSecrets() {
 
     const data = await res.json();
     state.allSecrets = data.secrets || [];
-    renderAllSecrets("");
+    await chrome.storage.local.set({ cachedSecrets: state.allSecrets });
+    renderAllSecrets($("allSecretsSearch") ? $("allSecretsSearch").value.trim() : "");
   } catch {
     // silent
   }
@@ -448,7 +484,7 @@ function wireUI() {
 
       state.token = data.token;
       state.user = data.user;
-      await chrome.storage.local.set({ token: data.token });
+      await chrome.storage.local.set({ token: data.token, user: data.user });
       showToast("Signed in!");
       showVaultView();
       await loadDomainSecrets();
@@ -484,7 +520,9 @@ function wireUI() {
     }
     state.token = null;
     state.user = null;
-    await chrome.storage.local.remove(["token"]);
+    state.allSecrets = [];
+    state.matchingSecrets = [];
+    await chrome.storage.local.remove(["token", "user", "cachedSecrets"]);
     showAuthView();
     showToast("Signed out");
   });
