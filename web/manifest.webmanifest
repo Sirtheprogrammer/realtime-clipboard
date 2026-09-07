@@ -1,13 +1,13 @@
 {
   "name": "Clipboard — realtime shared clipboard",
   "short_name": "Clipboard",
-  "description": "Paste text, images and files on one device and they appear instantly on every other device in the room.",
+  "description": "Instant cross-device clipboard sync for text, images, and files with zero telemetry.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0b0f19",
-  "theme_color": "#0b0f19",
+  "background_color": "#0f1013",
+  "theme_color": "#0f1013",
   "categories": ["productivity", "utilities"],
   "icons": [
     { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },

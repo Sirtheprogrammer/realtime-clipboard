@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Clipboard">
-  <rect width="192" height="192" rx="42" fill="#4f46e5"/>
-  <g fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M74 46h44a8 8 0 0 1 8 8v8H66v-8a8 8 0 0 1 8-8Z" fill="#ffffff" stroke="none"/>
+  <rect width="192" height="192" rx="42" fill="#121316"/>
+  <rect x="2" y="2" width="188" height="188" rx="40" fill="none" stroke="#2b2f3c" stroke-width="3"/>
+  <!-- Signal indicator dot -->
+  <circle cx="152" cy="40" r="7" fill="#ff9e1b"/>
+  <circle cx="152" cy="40" r="12" fill="#ff9e1b" opacity="0.25"/>
+  <g fill="none" stroke="#f2f4f8" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M74 46h44a8 8 0 0 1 8 8v8H66v-8a8 8 0 0 1 8-8Z" fill="#ff9e1b" stroke="#ff9e1b" stroke-width="2"/>
     <path d="M66 58H55a12 12 0 0 0-12 12v76a12 12 0 0 0 12 12h82a12 12 0 0 0 12-12V70a12 12 0 0 0-12-12h-11"/>
-    <path d="M68 94h56M68 116h56M68 138h34"/>
+    <path d="M68 94h56M68 116h56M68 138h34" stroke="#ff9e1b" stroke-width="9"/>
   </g>
 </svg>

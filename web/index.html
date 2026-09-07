@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Clipboard — realtime clipboard for all your devices</title>
 <meta name="description" content="Paste text, images and files on one device and they appear instantly on every other device in the room.">
-<meta name="theme-color" content="#0b0f19" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#f6f7fb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1013" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f3f0" media="(prefers-color-scheme: light)">
 <meta name="color-scheme" content="dark light">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
@@ -40,6 +40,11 @@
 <!-- ───────────────────────── Landing ───────────────────────── -->
 <section id="landing" class="landing" hidden>
   <div class="landing-inner">
+    <div class="telemetry-badge">
+      <span class="telemetry-led"></span>
+      <span class="telemetry-text">HARDWARE-GRADE INSTANT SYNC &bull; ZERO CLOUD LOCK-IN</span>
+    </div>
+
     <div class="brand brand-lg">
       <span class="brand-mark"><svg><use href="#i-clipboard"/></svg></span>
       <span class="brand-name">Clipboard</span>
@@ -55,16 +60,34 @@
         <svg><use href="#i-plus"/></svg> Create a room
       </button>
       <form id="joinForm" class="join">
-        <input id="joinCode" class="input" placeholder="join with a code" autocomplete="off"
+        <input id="joinCode" class="input" placeholder="join with code" autocomplete="off"
                spellcheck="false" aria-label="Room code">
         <button class="btn btn-ghost" type="submit">Join</button>
       </form>
     </div>
 
     <ul class="features">
-      <li><svg><use href="#i-text"/></svg><b>Text &amp; links</b><span>Ctrl+V anywhere on the page.</span></li>
-      <li><svg><use href="#i-image"/></svg><b>Screenshots</b><span>Paste straight from the snipping tool.</span></li>
-      <li><svg><use href="#i-file"/></svg><b>Files</b><span>Drag and drop, up to the server limit.</span></li>
+      <li>
+        <div class="feat-icon"><svg><use href="#i-text"/></svg></div>
+        <div class="feat-content">
+          <b>Text &amp; snippets</b>
+          <span>Ctrl+V anywhere on the page. Formatted instantly.</span>
+        </div>
+      </li>
+      <li>
+        <div class="feat-icon"><svg><use href="#i-image"/></svg></div>
+        <div class="feat-content">
+          <b>Screenshots</b>
+          <span>Paste straight from the snipping tool without saving files.</span>
+        </div>
+      </li>
+      <li>
+        <div class="feat-icon"><svg><use href="#i-file"/></svg></div>
+        <div class="feat-content">
+          <b>Binary Files</b>
+          <span>Drag and drop archives, docs, and assets up to the room quota.</span>
+        </div>
+      </li>
     </ul>
     <p class="fineprint" id="landingFinePrint"></p>
   </div>
@@ -148,8 +171,9 @@
                 aria-label="New clipboard item"></textarea>
       <div class="composer-bar">
         <div class="composer-hints">
-          <kbd>Ctrl</kbd><kbd>V</kbd><span>to paste ·</span>
-          <kbd>Ctrl</kbd><kbd>Enter</kbd><span>to send</span>
+          <kbd>Ctrl</kbd><kbd>V</kbd><span>paste</span>
+          <span class="sep">&bull;</span>
+          <kbd>Ctrl</kbd><kbd>Enter</kbd><span>send</span>
         </div>
         <div class="composer-buttons">
           <button class="btn btn-ghost btn-sm" id="pickFiles"><svg><use href="#i-upload"/></svg> Files</button>
@@ -162,7 +186,7 @@
     <div class="uploads" id="uploads"></div>
 
     <div class="stream-head">
-      <h2>Clipboard</h2>
+      <h2>Clipboard Stream</h2>
       <div class="filters" id="filters" role="tablist">
         <button class="chip is-active" data-filter="all" role="tab">All</button>
         <button class="chip" data-filter="text" role="tab">Text</button>
@@ -174,7 +198,7 @@
     <div class="stream" id="stream"></div>
 
     <div class="empty" id="empty" hidden>
-      <svg><use href="#i-clipboard"/></svg>
+      <div class="empty-icon"><svg><use href="#i-clipboard"/></svg></div>
       <h3>Nothing here yet</h3>
       <p>Copy something on another device and paste it into this page.</p>
     </div>
@@ -186,7 +210,7 @@
 
 <div class="dropzone" id="dropzone" hidden>
   <div class="dropzone-card">
-    <svg><use href="#i-upload"/></svg>
+    <div class="dropzone-icon"><svg><use href="#i-upload"/></svg></div>
     <b>Drop to share</b>
     <span>Files land in this room instantly.</span>
   </div>
@@ -218,7 +242,7 @@
 </div>
 
 <div class="offline-banner" id="offlineBanner" hidden>
-  Reconnecting… changes made elsewhere will appear when you're back.
+  <span class="offline-led"></span> Reconnecting… changes made elsewhere will appear when you're back.
 </div>
 
 <div class="toasts" id="toasts" aria-live="polite"></div>

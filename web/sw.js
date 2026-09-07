@@ -2,7 +2,7 @@
    still renders (empty, with a reconnect banner) when the network is gone.
    Nothing under /api or /ws is ever cached — clipboard content is live data. */
 
-const VERSION = "clipboard-v1";
+const VERSION = "clipboard-v2";
 const SHELL = [
   "/",
   "/styles.css",
