@@ -109,7 +109,7 @@ func TestHandleExtensionUpdatesJSON(t *testing.T) {
 	}
 
 	addons, ok := data["addons"].(map[string]any)
-	if !ok || addons["clipboard-vault@local"] == nil {
+	if !ok || addons["vault@clip.codesky.tech"] == nil {
 		t.Errorf("missing addons in json response: %v", data)
 	}
 }

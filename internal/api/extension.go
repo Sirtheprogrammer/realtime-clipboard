@@ -8,7 +8,7 @@ import (
 	"clipboard/extension"
 )
 
-const ExtensionCurrentVersion = "1.1.0"
+const ExtensionCurrentVersion = "1.2.0"
 
 func (s *Server) handleExtensionDownload(w http.ResponseWriter, r *http.Request) {
 	data, err := extension.ZipArchive()
@@ -23,53 +23,52 @@ func (s *Server) handleExtensionDownload(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
 	w.Header().Set("Cache-Control", "public, max-age=3600")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(data)
+	w.Write(data)
 }
 
 func (s *Server) handleExtensionVersion(w http.ResponseWriter, r *http.Request) {
-	baseURL := externalBaseURL(r)
-	info := map[string]any{
-		"version":            ExtensionCurrentVersion,
-		"download_url":       baseURL + "/api/extension/download",
-		"release_url":        "https://github.com/Sirtheprogrammer/realtime-clipboard/releases",
-		"chrome_update_url":  baseURL + "/api/extension/updates.xml",
-		"firefox_update_url": baseURL + "/api/extension/updates.json",
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	_ = json.NewEncoder(w).Encode(info)
+	base := externalBaseURL(r)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"version":      ExtensionCurrentVersion,
+		"download_url": base + "/api/extension/download",
+		"release_url":  "https://github.com/Sirtheprogrammer/realtime-clipboard/releases/tag/v" + ExtensionCurrentVersion,
+		"update_url":   base + "/api/extension/updates.xml",
+	})
 }
 
+// handleExtensionUpdatesXML serves Chrome / Edge / Chromium Omaha update manifest
 func (s *Server) handleExtensionUpdatesXML(w http.ResponseWriter, r *http.Request) {
-	baseURL := externalBaseURL(r)
-	xmlResp := fmt.Sprintf(`<?xml version='1.0' encoding='UTF-8'?>
+	base := externalBaseURL(r)
+	w.Header().Set("Content-Type", "text/xml; charset=UTF-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+
+	// Chromium Omaha update XML format
+	fmt.Fprintf(w, `<?xml version='1.0' encoding='UTF-8'?>
 <gupdate xmlns='http://www.google.com/update2/response' protocol='2.0'>
   <app appid='clipboard-vault-extension'>
     <updatecheck codebase='%s/api/extension/download' version='%s' />
   </app>
-</gupdate>`, baseURL, ExtensionCurrentVersion)
-
-	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(xmlResp))
+</gupdate>`, base, ExtensionCurrentVersion)
 }
 
+// handleExtensionUpdatesJSON serves Firefox Gecko Add-on update manifest
 func (s *Server) handleExtensionUpdatesJSON(w http.ResponseWriter, r *http.Request) {
-	baseURL := externalBaseURL(r)
-	jsonResp := map[string]any{
+	base := externalBaseURL(r)
+	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
+	w.Header().Set("Cache-Control", "public, max-age=300")
+
+	// Firefox Gecko Add-on update JSON manifest format
+	manifest := map[string]any{
 		"addons": map[string]any{
-			"clipboard-vault@local": map[string]any{
+			"vault@clip.codesky.tech": map[string]any{
 				"updates": []map[string]any{
 					{
 						"version":     ExtensionCurrentVersion,
-						"update_link": baseURL + "/api/extension/download",
+						"update_link": base + "/api/extension/download",
 					},
 				},
 			},
 		},
 	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	_ = json.NewEncoder(w).Encode(jsonResp)
+	_ = json.NewEncoder(w).Encode(manifest)
 }

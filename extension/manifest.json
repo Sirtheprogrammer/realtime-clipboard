@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Clipboard Vault — Credential & Secret Manager",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Securely save, autofill, and synchronize encrypted passwords, tokens, and API keys across all your devices.",
   "permissions": [
     "activeTab",
@@ -23,28 +23,17 @@
     {
       "matches": ["http://*/*", "https://*/*"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_idle",
+      "all_frames": false
     }
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Clipboard Vault",
-    "default_icon": {
-      "16": "icons/icon-16.png",
-      "32": "icons/icon-32.png",
-      "48": "icons/icon-48.png",
-      "128": "icons/icon-128.png"
-    }
-  },
-  "icons": {
-    "16": "icons/icon-16.png",
-    "32": "icons/icon-32.png",
-    "48": "icons/icon-48.png",
-    "128": "icons/icon-128.png"
+    "default_title": "Clipboard Vault"
   },
   "browser_specific_settings": {
     "gecko": {
-      "id": "clipboard-vault@local",
+      "id": "vault@clip.codesky.tech",
       "strict_min_version": "109.0",
       "update_url": "https://clip.codesky.tech/api/extension/updates.json"
     }
