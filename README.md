@@ -312,10 +312,4 @@ This is deliberately sign-in free, which shapes the threat model:
   escaping the storage root.
 - There is no rate limiting. On the open internet, put a reverse proxy in front.
 
-## Possible next steps
 
-Optional passphrase per room · Android/iOS share-target so
-"Share → Clipboard" works from any app · end-to-end encryption
-with the room code as the key · pagination beyond the most recent 200 items ·
-an S3 blob backend, which would suit Heroku better than Postgres rows for
-anyone sharing large files regularly.
