@@ -1,3 +1,4 @@
+import { initVault } from "./vault.js";
 /* ============================================================
    Clipboard — realtime dashboard client
    ============================================================ */
@@ -119,6 +120,7 @@ async function api(path, options = {}) {
   }
   return res.status === 204 ? null : res.json();
 }
+window.__clipboardApi = api;
 
 /* ── Routing ───────────────────────────────────────────────── */
 
@@ -1019,6 +1021,7 @@ wireComposer();
 wireQR();
 wirePasteAndDrop();
 wirePWA();
+initVault(api, toast);
 
 window.addEventListener("popstate", route);
 

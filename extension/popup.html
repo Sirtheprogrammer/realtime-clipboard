@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clipboard Vault</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+<header class="ext-header">
+  <div class="ext-brand">
+    <div class="ext-logo">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+    </div>
+    <b>Clipboard Vault</b>
+  </div>
+  <div class="ext-header-actions">
+    <button id="settingsToggleBtn" class="icon-btn" title="Server Settings">
+      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Server Settings Panel (collapsible) -->
+<section id="settingsPanel" class="ext-panel" hidden>
+  <div class="panel-header">
+    <span>Clipboard Server</span>
+    <span id="serverStatusDot" class="status-dot"></span>
+  </div>
+  <div class="input-group">
+    <input type="url" id="serverUrlInput" class="ext-input" placeholder="http://localhost:8080">
+    <button id="saveServerBtn" class="ext-btn ext-btn-primary sm">Save</button>
+  </div>
+</section>
+
+<!-- Logged Out View -->
+<main id="authView" class="ext-view" hidden>
+  <div class="auth-box">
+    <p class="auth-hint">Sign in to access your hardware-grade encrypted secrets and autofill on this page.</p>
+    <form id="extLoginForm">
+      <label class="ext-label">
+        <span>Email</span>
+        <input type="email" id="loginEmail" class="ext-input" required placeholder="user@example.com">
+      </label>
+      <label class="ext-label">
+        <span>Password</span>
+        <input type="password" id="loginPassword" class="ext-input" required placeholder="••••••••">
+      </label>
+      <button type="submit" id="loginBtn" class="ext-btn ext-btn-primary full">Sign In</button>
+    </form>
+    <div class="auth-foot">
+      <a href="#" id="openWebVaultLink" class="ext-link">Open Web Dashboard / Create Account</a>
+    </div>
+  </div>
+</main>
+
+<!-- Logged In View -->
+<main id="vaultView" class="ext-view" hidden>
+  <!-- User Profile & Navigation Bar -->
+  <div class="user-bar">
+    <span id="userDisplay" class="user-display">—</span>
+    <button id="logoutBtn" class="ext-link-danger">Sign Out</button>
+  </div>
+
+  <!-- Pending Save Banner (captured on form submit) -->
+  <div id="pendingSaveBanner" class="pending-banner" hidden>
+    <div class="pending-text">
+      <b>Save new password?</b>
+      <span id="pendingUserText"></span>
+    </div>
+    <div class="pending-actions">
+      <button id="acceptPendingBtn" class="ext-btn ext-btn-primary sm">Save</button>
+      <button id="dismissPendingBtn" class="ext-btn ext-btn-ghost sm">Dismiss</button>
+    </div>
+  </div>
+
+  <!-- Current Site Context -->
+  <section class="site-section">
+    <div class="site-header">
+      <div class="site-domain-box">
+        <span class="site-tag">ACTIVE TAB</span>
+        <h3 id="currentDomain" class="site-domain">…</h3>
+      </div>
+      <button id="addForSiteBtn" class="ext-btn ext-btn-ghost sm">+ Add</button>
+    </div>
+
+    <div id="matchingSecretsList" class="credentials-list"></div>
+
+    <div id="noMatchingSecrets" class="empty-state" hidden>
+      <span>No saved credentials for this domain.</span>
+    </div>
+  </section>
+
+  <!-- Search All Secrets -->
+  <section class="search-section">
+    <div class="search-input-wrap">
+      <input type="search" id="allSecretsSearch" class="ext-input" placeholder="Search all vault secrets...">
+    </div>
+    <div id="allSecretsList" class="all-secrets-list"></div>
+  </section>
+</main>
+
+<!-- Add / Edit Secret Modal (overlay within extension popup) -->
+<div id="secretModal" class="ext-modal" hidden>
+  <div class="ext-modal-card">
+    <div class="ext-modal-head">
+      <b id="secretModalTitle">New Credential</b>
+      <button id="closeSecretModal" class="icon-btn">&times;</button>
+    </div>
+    <form id="newSecretForm">
+      <label class="ext-label">
+        <span>Title</span>
+        <input type="text" id="newTitle" class="ext-input" required placeholder="e.g. GitHub Account">
+      </label>
+      <label class="ext-label">
+        <span>Username / Email</span>
+        <input type="text" id="newUsername" class="ext-input" placeholder="username or email">
+      </label>
+      <label class="ext-label">
+        <span>Domain / URL</span>
+        <input type="text" id="newURL" class="ext-input" placeholder="https://example.com">
+      </label>
+      <label class="ext-label">
+        <span class="label-actions">
+          <span>Password</span>
+          <button type="button" id="extGenPassBtn" class="ext-link-action">Generate Strong</button>
+        </span>
+        <input type="text" id="newValue" class="ext-input" required placeholder="Secret value...">
+      </label>
+      <div class="modal-buttons">
+        <button type="button" id="cancelSecretBtn" class="ext-btn ext-btn-ghost sm">Cancel</button>
+        <button type="submit" id="saveSecretBtn" class="ext-btn ext-btn-primary sm">Save Encrypted</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="toast" class="ext-toast" hidden></div>
+
+<script src="popup.js"></script>
+</body>
+</html>

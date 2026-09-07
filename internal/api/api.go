@@ -50,9 +50,25 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/items/{id}/download", s.handleDownloadItem)
 	mux.HandleFunc("GET /ws", s.handleWebSocket)
 
+	// Auth Endpoints
+	mux.HandleFunc("POST /api/auth/register", s.handleRegister)
+	mux.HandleFunc("POST /api/auth/login", s.handleLogin)
+	mux.HandleFunc("POST /api/auth/logout", s.handleLogout)
+	mux.HandleFunc("GET /api/auth/me", s.handleMe)
+	mux.HandleFunc("GET /api/auth/github", s.handleGitHubAuth)
+	mux.HandleFunc("GET /api/auth/github/callback", s.handleGitHubCallback)
+
+	// Secret Store Endpoints
+	mux.HandleFunc("GET /api/secrets", s.handleListSecrets)
+	mux.HandleFunc("POST /api/secrets", s.handleCreateSecret)
+	mux.HandleFunc("GET /api/secrets/lookup", s.handleLookupSecrets)
+	mux.HandleFunc("GET /api/secrets/{id}", s.handleGetSecret)
+	mux.HandleFunc("PUT /api/secrets/{id}", s.handleUpdateSecret)
+	mux.HandleFunc("DELETE /api/secrets/{id}", s.handleDeleteSecret)
+
 	s.mountStatic(mux)
 
-	return s.withRecovery(s.withLogging(mux))
+	return s.withRecovery(s.withCORS(s.withLogging(mux)))
 }
 
 // mountStatic serves the dashboard and rewrites /r/{code} deep links back onto
@@ -154,6 +170,23 @@ func (s *Server) StartEvents(ctx context.Context) {
 	s.hub.SetPresencePublisher(func(room string) { s.publishPresence(ctx, room) })
 	s.bus.Listen(ctx, s.handleRemoteEvent)
 	go s.presenceHeartbeat(ctx)
+}
+
+func (s *Server) withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) withLogging(next http.Handler) http.Handler {

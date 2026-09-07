@@ -11,7 +11,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/icon-192.png">
-<link rel="stylesheet" href="/styles.css?v=3">
+<link rel="stylesheet" href="/styles.css?v=4">
 </head>
 <body>
 
@@ -35,10 +35,30 @@
   <symbol id="i-devices" viewBox="0 0 24 24"><rect x="2" y="5" width="13" height="9" rx="1.5"/><rect x="16" y="9" width="6" height="10" rx="1.5"/><path d="M6 18h5"/></symbol>
   <symbol id="i-qr" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM19 19h2M19 14h2v2"/></symbol>
   <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12 20 4l-7 16-2.5-6.5L4 12Z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m11 12 9-9h3v3h-2v2h-2v2l-3.5 3.5"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" y1="2" x2="22" y2="22"/></symbol>
 </svg>
 
 <!-- ───────────────────────── Landing ───────────────────────── -->
 <section id="landing" class="landing" hidden>
+  <header class="landing-nav">
+    <div class="brand">
+      <span class="brand-mark"><svg><use href="#i-clipboard"/></svg></span>
+      <span class="brand-name">Clipboard</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
+      <svg><use href="#i-shield"/></svg> Secrets Vault
+    </button>
+    <button class="btn btn-ghost btn-sm auth-btn" title="Account">
+      <svg><use href="#i-user"/></svg> <span class="auth-label">Sign In</span>
+    </button>
+  </header>
+
   <div class="landing-inner">
     <div class="brand brand-lg">
       <span class="brand-mark"><svg><use href="#i-clipboard"/></svg></span>
@@ -77,10 +97,10 @@
         </div>
       </li>
       <li>
-        <div class="feat-icon"><svg><use href="#i-file"/></svg></div>
+        <div class="feat-icon"><svg><use href="#i-shield"/></svg></div>
         <div class="feat-content">
-          <b>Binary Files</b>
-          <span>Drag and drop archives, docs, and assets up to the room quota.</span>
+          <b>Encrypted Secret Store</b>
+          <span>Save passwords, API keys and credentials with AES-256-GCM envelope encryption.</span>
         </div>
       </li>
     </ul>
@@ -108,6 +128,13 @@
     </button>
 
     <div class="spacer"></div>
+
+    <button class="btn btn-ghost btn-sm vault-btn" title="Encrypted Secret Store">
+      <svg><use href="#i-shield"/></svg> <span class="not-mobile">Vault</span>
+    </button>
+    <button class="btn btn-ghost btn-sm auth-btn" title="Account">
+      <svg><use href="#i-user"/></svg> <span class="auth-label not-mobile">Account</span>
+    </button>
 
     <span class="peers not-mobile" id="peersChip" title="Connected devices">
       <svg><use href="#i-devices"/></svg><span id="peerCount">0</span>
@@ -200,7 +227,7 @@
   </main>
 </div>
 
-<!-- ───────────────────────── Overlays ───────────────────────── -->
+<!-- ───────────────────────── Overlays & Modals ───────────────────────── -->
 <div class="scrim" id="scrim" hidden></div>
 
 <div class="dropzone" id="dropzone" hidden>
@@ -211,6 +238,7 @@
   </div>
 </div>
 
+<!-- QR Modal -->
 <div class="modal" id="qrModal" hidden>
   <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
     <header class="modal-head">
@@ -227,6 +255,175 @@
       <button class="btn btn-ghost btn-sm" id="qrCopy"><svg><use href="#i-link"/></svg> Copy link</button>
       <button class="btn btn-ghost btn-sm" id="qrShare" hidden><svg><use href="#i-share"/></svg> Share</button>
     </div>
+  </div>
+</div>
+
+<!-- Auth Modal (Login / Register / Profile) -->
+<div class="modal" id="authModal" hidden>
+  <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+    <header class="modal-head">
+      <h2 id="authTitle">Account &amp; Security</h2>
+      <button class="icon-btn" id="authClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </header>
+
+    <!-- Logged Out View -->
+    <div id="authLoggedOutView">
+      <div class="auth-tabs" role="tablist">
+        <button class="chip is-active" id="tabSignIn" role="tab">Sign In</button>
+        <button class="chip" id="tabRegister" role="tab">Create Account</button>
+      </div>
+
+      <!-- Sign In Form -->
+      <form id="signInForm" class="auth-form">
+        <label class="form-label">
+          <span>Email</span>
+          <input type="email" id="signInEmail" class="input full" required placeholder="user@example.com" autocomplete="email">
+        </label>
+        <label class="form-label">
+          <span>Password</span>
+          <input type="password" id="signInPassword" class="input full" required placeholder="••••••••" autocomplete="current-password">
+        </label>
+        <button type="submit" class="btn btn-primary full" id="signInSubmit">Sign In</button>
+
+        <div class="auth-divider"><span>OR</span></div>
+        <button type="button" class="btn btn-ghost full" id="githubAuthBtn">
+          <svg><use href="#i-github"/></svg> Continue with GitHub
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="registerForm" class="auth-form" hidden>
+        <label class="form-label">
+          <span>Email</span>
+          <input type="email" id="registerEmail" class="input full" required placeholder="user@example.com" autocomplete="email">
+        </label>
+        <label class="form-label">
+          <span>Password (min 8 characters)</span>
+          <input type="password" id="registerPassword" class="input full" required minlength="8" placeholder="••••••••" autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn btn-primary full" id="registerSubmit">Create Account</button>
+
+        <div class="auth-divider"><span>OR</span></div>
+        <button type="button" class="btn btn-ghost full" id="githubRegisterBtn">
+          <svg><use href="#i-github"/></svg> Sign up with GitHub
+        </button>
+      </form>
+    </div>
+
+    <!-- Logged In View -->
+    <div id="authLoggedInView" hidden class="auth-profile">
+      <div class="profile-info">
+        <div class="profile-avatar"><svg><use href="#i-user"/></svg></div>
+        <div class="profile-meta">
+          <b id="authProfileEmail">—</b>
+          <span id="authProfileGitHub" class="gh-badge" hidden><svg><use href="#i-github"/></svg> <span id="authProfileGitHubUser"></span></span>
+        </div>
+      </div>
+      <p class="hint">Your account protects your encrypted Secret Store and synchronizes with browser extensions.</p>
+      <div class="auth-profile-actions">
+        <button class="btn btn-danger full" id="authSignOutBtn">Sign Out</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Secrets Vault Modal -->
+<div class="modal" id="vaultModal" hidden>
+  <div class="modal-card modal-card-lg" role="dialog" aria-modal="true" aria-labelledby="vaultTitle">
+    <header class="modal-head">
+      <div>
+        <h2 id="vaultTitle" class="flex-align-gap"><svg><use href="#i-shield"/></svg> Secrets Vault</h2>
+        <span class="vault-encryption-badge">AES-256-GCM ENCRYPTED</span>
+      </div>
+      <button class="icon-btn" id="vaultClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="vault-toolbar">
+      <input type="search" id="vaultSearch" class="input vault-search" placeholder="Search passwords, API keys, domains...">
+      <div class="filters" id="vaultFilters" role="tablist">
+        <button class="chip is-active" data-kind="all" role="tab">All</button>
+        <button class="chip" data-kind="password" role="tab">Passwords</button>
+        <button class="chip" data-kind="api_key" role="tab">API Keys</button>
+        <button class="chip" data-kind="note" role="tab">Notes</button>
+      </div>
+      <button class="btn btn-primary btn-sm" id="newSecretBtn"><svg><use href="#i-plus"/></svg> New Secret</button>
+    </div>
+
+    <!-- Extension Prompt Banner -->
+    <div class="vault-ext-banner">
+      <div class="ext-banner-content">
+        <b>Browser Extension Available</b>
+        <span>Save and autofill credentials directly in Chrome, Firefox, Brave, and Edge.</span>
+      </div>
+      <code class="ext-load-hint">Load unpacked from /extension</code>
+    </div>
+
+    <!-- Secrets List -->
+    <div class="secrets-grid" id="secretsList"></div>
+
+    <div class="empty" id="secretsEmpty" hidden>
+      <div class="empty-icon"><svg><use href="#i-shield"/></svg></div>
+      <h3>No secrets saved</h3>
+      <p>Click "New Secret" to securely store passwords, tokens, or private notes.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Secret Drawer / Edit Modal -->
+<div class="modal" id="secretDrawerModal" hidden>
+  <div class="modal-card modal-card-sm" role="dialog" aria-modal="true" aria-labelledby="secretDrawerTitle">
+    <header class="modal-head">
+      <h2 id="secretDrawerTitle">New Secret</h2>
+      <button class="icon-btn" id="secretDrawerClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </header>
+
+    <form id="secretForm" class="auth-form">
+      <label class="form-label">
+        <span>Title</span>
+        <input type="text" id="secretTitle" class="input full" required placeholder="e.g. GitHub Token, Work Email, Stripe Key">
+      </label>
+
+      <div class="form-grid-2">
+        <label class="form-label">
+          <span>Type</span>
+          <select id="secretKind" class="input full">
+            <option value="password">Password</option>
+            <option value="api_key">API Key</option>
+            <option value="token">Token</option>
+            <option value="note">Secure Note</option>
+          </select>
+        </label>
+        <label class="form-label">
+          <span>Username / Email (optional)</span>
+          <input type="text" id="secretUsername" class="input full" placeholder="username or email">
+        </label>
+      </div>
+
+      <label class="form-label">
+        <span>Target URL / Domain (for browser autofill)</span>
+        <input type="text" id="secretURL" class="input full" placeholder="https://github.com or github.com">
+      </label>
+
+      <label class="form-label">
+        <span class="label-with-action">
+          <span>Secret / Password</span>
+          <button type="button" class="btn-text-action" id="genPasswordBtn">Generate Strong</button>
+        </span>
+        <div class="input-action-group">
+          <input type="password" id="secretValue" class="input full" required placeholder="Secret value...">
+          <button type="button" class="icon-btn" id="secretValueToggle" title="Show/Hide"><svg><use href="#i-eye"/></svg></button>
+        </div>
+      </label>
+
+      <label class="form-label">
+        <span>Notes (optional)</span>
+        <textarea id="secretNotes" class="input full" rows="2" placeholder="Additional notes, recovery codes..."></textarea>
+      </label>
+
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary full" id="secretSaveBtn">Save Encrypted</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -258,6 +455,6 @@
   </article>
 </template>
 
-<script src="/app.js?v=3" type="module"></script>
+<script src="/app.js?v=4" type="module"></script>
 </body>
 </html>

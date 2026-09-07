@@ -1342,3 +1342,311 @@ kbd {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ───────────────────────── Landing Nav ───────────────────────── */
+.landing-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  padding-top: calc(14px + env(safe-area-inset-top));
+  z-index: 30;
+}
+
+/* ───────────────────────── Auth & Secrets Modals ───────────────────────── */
+.modal-card-sm {
+  width: min(420px, 100%);
+}
+.modal-card-lg {
+  width: min(840px, 94vw);
+  max-height: calc(100dvh - 50px);
+}
+.flex-align-gap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 16px;
+  background: var(--panel-2);
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+.auth-tabs .chip {
+  flex: 1;
+  text-align: center;
+}
+
+.auth-form {
+  display: grid;
+  gap: 12px;
+}
+.form-label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11.5px;
+  font-family: var(--mono);
+  font-weight: 600;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.form-label select {
+  appearance: none;
+  cursor: pointer;
+}
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.input-action-group {
+  display: flex;
+  gap: 6px;
+}
+.label-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.btn-text-action {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.btn-text-action:hover {
+  text-decoration: underline;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: ;
+ flex: 1;
+ height: 1px;
+ background: var(--line);
+}
+
+.auth-profile {
+ display: grid;
+ gap: 16px;
+ margin-top: 14px;
+}
+.profile-info {
+ display: flex;
+ align-items: center;
+ gap: 14px;
+ padding: 14px;
+ border-radius: var(--radius-sm);
+ background: var(--panel-2);
+ border: 1px solid var(--line);
+}
+.profile-avatar {
+ width: 44px;
+ height: 44px;
+ border-radius: 50%;
+ background: var(--panel);
+ border: 1px solid var(--line-strong);
+ display: grid;
+ place-items: center;
+ color: var(--ink);
+ flex: none;
+}
+.profile-avatar svg { width: 22px; height: 22px; }
+.profile-meta b {
+ font-size: 14px;
+ color: var(--ink);
+ display: block;
+}
+.gh-badge {
+ display: inline-flex;
+ align-items: center;
+ gap: 5px;
+ font-family: var(--mono);
+ font-size: 12px;
+ color: var(--ink-2);
+ margin-top: 3px;
+}
+.gh-badge svg { width: 14px; height: 14px; }
+
+/* ───────────────────────── Vault Toolbar & Cards ───────────────────────── */
+.vault-encryption-badge {
+ display: inline-block;
+ font-family: var(--mono);
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 0.06em;
+ padding: 2px 7px;
+ border-radius: var(--radius-xs);
+ background: rgba(16, 185, 129, 0.12);
+ color: var(--good);
+ border: 1px solid rgba(16, 185, 129, 0.35);
+ margin-top: 4px;
+}
+
+.vault-toolbar {
+ display: flex;
+ gap: 8px;
+ align-items: center;
+ margin: 16px 0 12px;
+ flex-wrap: wrap;
+}
+.vault-search {
+ flex: 1;
+ min-width: 180px;
+}
+
+.vault-ext-banner {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: 10px;
+ padding: 10px 14px;
+ background: var(--panel-2);
+ border: 1px solid var(--line);
+ border-radius: var(--radius-sm);
+ margin-bottom: 16px;
+ flex-wrap: wrap;
+}
+.ext-banner-content b {
+ display: block;
+ font-size: 12.5px;
+ color: var(--ink);
+}
+.ext-banner-content span {
+ font-size: 11.5px;
+ color: var(--ink-3);
+}
+.ext-load-hint {
+ font-family: var(--mono);
+ font-size: 11px;
+ background: var(--panel);
+ padding: 3px 8px;
+ border-radius: var(--radius-xs);
+ border: 1px solid var(--line-strong);
+ color: var(--ink-2);
+}
+
+.secrets-grid {
+ display: grid;
+ gap: 12px;
+ grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+ align-items: start;
+}
+.secret-card {
+ background: var(--panel);
+ border: 1px solid var(--line);
+ border-radius: var(--radius);
+ box-shadow: var(--shadow);
+ padding: 14px;
+ display: flex;
+ flex-direction: column;
+ gap: 10px;
+ transition: border-color 0.14s;
+}
+.secret-card:hover {
+ border-color: var(--line-strong);
+}
+.secret-card-head {
+ display: flex;
+ align-items: center;
+ gap: 8px;
+}
+.secret-kind {
+ font-family: var(--mono);
+ font-size: 10px;
+ font-weight: 700;
+ letter-spacing: 0.06em;
+ padding: 2px 6px;
+ border-radius: var(--radius-xs);
+ background: var(--panel-2);
+ border: 1px solid var(--line);
+ color: var(--ink-2);
+ display: inline-flex;
+ align-items: center;
+ gap: 4px;
+}
+.secret-kind svg { width: 12px; height: 12px; }
+.secret-domain {
+ font-family: var(--mono);
+ font-size: 11.5px;
+ color: var(--ink-3);
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+ max-width: 140px;
+}
+.secret-title {
+ font-size: 14px;
+ font-weight: 650;
+ margin: 0 0 6px;
+ color: var(--ink);
+}
+.secret-sub-field {
+ font-family: var(--mono);
+ font-size: 11.5px;
+ color: var(--ink-2);
+ display: flex;
+ align-items: center;
+ gap: 6px;
+ margin-bottom: 6px;
+}
+.secret-sub-field .label {
+ color: var(--ink-3);
+}
+.btn-copy-inline {
+ background: none;
+ border: none;
+ padding: 0;
+ font-family: var(--mono);
+ font-size: 10.5px;
+ color: var(--accent);
+ cursor: pointer;
+ text-decoration: underline;
+}
+.secret-val-row {
+ display: flex;
+ gap: 6px;
+ align-items: center;
+}
+.secret-val-display {
+ flex: 1;
+ font-family: var(--mono);
+ font-size: 12.5px;
+ padding: 6px 9px;
+ background: var(--bg-soft);
+ border: 1px solid var(--line);
+ border-radius: var(--radius-xs);
+ color: var(--ink);
+}
+.secret-notes {
+ font-size: 12px;
+ color: var(--ink-3);
+ margin: 6px 0 0;
+ font-style: italic;
+ overflow-wrap: anywhere;
+}

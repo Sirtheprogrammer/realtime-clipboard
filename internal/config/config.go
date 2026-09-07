@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"net/url"
 	"os"
@@ -29,6 +30,12 @@ type Config struct {
 	SweepInterval  time.Duration
 	AllowedOrigins string
 
+	// Secret Store & Auth
+	SecretMasterKey    [32]byte
+	GitHubClientID     string
+	GitHubClientSecret string
+	BaseURL            string
+
 	// InstanceID distinguishes this process from its siblings when several are
 	// sharing one database. On Heroku it is the dyno name.
 	InstanceID string
@@ -45,10 +52,13 @@ func Load() Config {
 		MaxUploadBytes: envInt64("MAX_UPLOAD_BYTES", 100<<20), // 100 MiB
 		// Must be at least 2: the cross-instance event listener holds one
 		// connection open for as long as the process runs.
-		MaxDBConns:     int32(max(envInt64("DB_MAX_CONNS", 10), 2)),
-		Retention:      envDuration("RETENTION", 24*time.Hour),
-		SweepInterval:  envDuration("SWEEP_INTERVAL", 5*time.Minute),
-		AllowedOrigins: env("ALLOWED_ORIGINS", "*"),
+		MaxDBConns:         int32(max(envInt64("DB_MAX_CONNS", 10), 2)),
+		Retention:          envDuration("RETENTION", 24*time.Hour),
+		SweepInterval:      envDuration("SWEEP_INTERVAL", 5*time.Minute),
+		AllowedOrigins:     env("ALLOWED_ORIGINS", "*"),
+		GitHubClientID:     env("GITHUB_CLIENT_ID", ""),
+		GitHubClientSecret: env("GITHUB_CLIENT_SECRET", ""),
+		BaseURL:            strings.TrimSuffix(env("BASE_URL", ""), "/"),
 	}
 
 	dyno := os.Getenv("DYNO")
@@ -57,8 +67,29 @@ func Load() Config {
 	cfg.DatabaseURL, cfg.Notes = databaseURL(cfg.Notes)
 	cfg.BlobBackend, cfg.Notes = blobBackend(dyno, cfg.Notes)
 	cfg.InstanceID = instanceID(dyno)
+	cfg.SecretMasterKey, cfg.Notes = masterKey(cfg.Notes)
 
 	return cfg
+}
+
+func masterKey(notes []string) ([32]byte, []string) {
+	raw := os.Getenv("SECRET_MASTER_KEY")
+	if raw != "" {
+		if len(raw) == 64 {
+			if decoded, err := hex.DecodeString(raw); err == nil && len(decoded) == 32 {
+				var k [32]byte
+				copy(k[:], decoded)
+				return k, notes
+			}
+		}
+		// Derive 32 bytes from arbitrary string
+		hash := sha256.Sum256([]byte(raw))
+		return hash, notes
+	}
+	// Fallback for local development
+	const devKey = "clipboard-dev-secret-master-key-v1"
+	hash := sha256.Sum256([]byte(devKey))
+	return hash, append(notes, "SECRET_MASTER_KEY not set; using development default key")
 }
 
 // listenAddr prefers PORT, which is how Heroku (and most other PaaS hosts) tell
