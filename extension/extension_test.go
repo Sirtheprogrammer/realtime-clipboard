@@ -21,13 +21,17 @@ func TestZipArchive(t *testing.T) {
 	}
 
 	expectedFiles := map[string]bool{
-		"manifest.json": false,
-		"background.js": false,
-		"content.js":    false,
-		"popup.html":    false,
-		"popup.css":     false,
-		"popup.js":      false,
-		"README.md":     false,
+		"manifest.json":      false,
+		"background.js":      false,
+		"content.js":         false,
+		"popup.html":         false,
+		"popup.css":          false,
+		"popup.js":           false,
+		"README.md":          false,
+		"icons/icon-16.png":  false,
+		"icons/icon-32.png":  false,
+		"icons/icon-48.png":  false,
+		"icons/icon-128.png": false,
 	}
 
 	for _, f := range reader.File {
