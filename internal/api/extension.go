@@ -8,7 +8,7 @@ import (
 	"clipboard/extension"
 )
 
-const ExtensionCurrentVersion = "1.3.1"
+const ExtensionCurrentVersion = "1.4.0"
 
 func (s *Server) handleExtensionDownload(w http.ResponseWriter, r *http.Request) {
 	data, err := extension.ZipArchive()
