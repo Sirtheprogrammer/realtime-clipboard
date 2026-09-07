@@ -7,3 +7,8 @@ clipboard-server*
 *.exe
 *.db
 *.sqlite
+
+# Agent & AI Skill directories (local only)
+.agents/
+.agent/
+.gemini/
