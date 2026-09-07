@@ -33,6 +33,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (state.token) {
     await verifyAuth();
   } else {
+    showAuthView();
     // Attempt automatic cookie sync in case user logged in via web/GitHub
     await attemptCookieSync();
   }
@@ -527,6 +528,8 @@ function wireUI() {
     const saveBtn = $("saveSecretBtn");
     saveBtn.disabled = true;
 
+    const kind = $("newKind") ? $("newKind").value : "password";
+
     try {
       const res = await fetch(`${state.serverUrl}/api/secrets`, {
         method: "POST",
@@ -534,7 +537,6 @@ function wireUI() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${state.token}`,
         },
-        const kind = $("newKind") ? $("newKind").value : "password";
         body: JSON.stringify({ title, kind, username, url, value }),
       });
 
