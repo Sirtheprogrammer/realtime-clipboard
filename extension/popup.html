@@ -26,6 +26,17 @@
   </div>
 </header>
 
+<!-- Update Notification Banner -->
+<div id="updateBanner" class="update-banner" hidden style="display: none;">
+  <div class="update-banner-content">
+    <div class="update-banner-title">
+      <span class="update-badge">UPDATE</span>
+      <span id="updateVerText">New version available</span>
+    </div>
+    <a id="updateDownloadLink" class="ext-btn ext-btn-primary sm" href="#" target="_blank">Download</a>
+  </div>
+</div>
+
 <!-- Server & Automation Settings Panel (collapsible) -->
 <section id="settingsPanel" class="ext-panel" hidden>
   <div class="panel-header">
@@ -38,20 +49,24 @@
   </div>
   <div class="settings-toggles">
     <label class="setting-toggle-row">
-      <span>Auto-fill matching logins</span>
+      <span>Auto-fill matching logins & API keys</span>
       <input type="checkbox" id="toggleAutoFill" checked>
     </label>
     <label class="setting-toggle-row">
-      <span>Auto-save new logins</span>
+      <span>Auto-save new logins & API keys</span>
       <input type="checkbox" id="toggleAutoSave" checked>
     </label>
+  </div>
+  <div class="settings-update-row">
+    <span class="settings-version" id="extCurrentVersion">v1.1.0</span>
+    <button type="button" id="checkUpdatesBtn" class="ext-btn ext-btn-ghost sm">Check for Updates</button>
   </div>
 </section>
 
 <!-- Logged Out View -->
 <main id="authView" class="ext-view" hidden>
   <div class="auth-box">
-    <p class="auth-hint">Sign in to access your hardware-grade encrypted secrets and autofill on this page.</p>
+    <p class="auth-hint">Sign in to access your hardware-grade encrypted secrets, API keys, and autofill on this page.</p>
     <form id="extLoginForm">
       <label class="ext-label">
         <span>Email</span>
@@ -88,7 +103,7 @@
   <!-- Pending Save Banner (captured on form submit) -->
   <div id="pendingSaveBanner" class="pending-banner" hidden>
     <div class="pending-text">
-      <b>Save new password?</b>
+      <b>Save new secret?</b>
       <span id="pendingUserText"></span>
     </div>
     <div class="pending-actions">
@@ -110,14 +125,14 @@
     <div id="matchingSecretsList" class="credentials-list"></div>
 
     <div id="noMatchingSecrets" class="empty-state" hidden>
-      <span>No saved credentials for this domain.</span>
+      <span>No saved credentials or API keys for this domain.</span>
     </div>
   </section>
 
   <!-- Search All Secrets -->
   <section class="search-section">
     <div class="search-input-wrap">
-      <input type="search" id="allSecretsSearch" class="ext-input" placeholder="Search all vault secrets...">
+      <input type="search" id="allSecretsSearch" class="ext-input" placeholder="Search secrets & API keys...">
     </div>
     <div id="allSecretsList" class="all-secrets-list"></div>
   </section>
@@ -132,23 +147,31 @@
     </div>
     <form id="newSecretForm">
       <label class="ext-label">
+        <span>Type</span>
+        <select id="newKind" class="ext-input">
+          <option value="password">Password / Account</option>
+          <option value="api_key">API Key / Token</option>
+          <option value="note">Secure Note</option>
+        </select>
+      </label>
+      <label class="ext-label">
         <span>Title</span>
-        <input type="text" id="newTitle" class="ext-input" required placeholder="e.g. GitHub Account">
+        <input type="text" id="newTitle" class="ext-input" required placeholder="e.g. GitHub Token, OpenAI API Key">
       </label>
       <label class="ext-label">
-        <span>Username / Email</span>
-        <input type="text" id="newUsername" class="ext-input" placeholder="username or email">
+        <span>Username / Identifier</span>
+        <input type="text" id="newUsername" class="ext-input" placeholder="username or email (optional for API keys)">
       </label>
       <label class="ext-label">
-        <span>Domain / URL</span>
-        <input type="text" id="newURL" class="ext-input" placeholder="https://example.com">
+        <span>Domain / Platform</span>
+        <input type="text" id="newURL" class="ext-input" placeholder="e.g. github.com, openai.com">
       </label>
       <label class="ext-label">
         <span class="label-actions">
-          <span>Password</span>
+          <span>Secret / Key Value</span>
           <button type="button" id="extGenPassBtn" class="ext-link-action">Generate Strong</button>
         </span>
-        <input type="text" id="newValue" class="ext-input" required placeholder="Secret value...">
+        <input type="text" id="newValue" class="ext-input" required placeholder="Secret value, password, or token...">
       </label>
       <div class="modal-buttons">
         <button type="button" id="cancelSecretBtn" class="ext-btn ext-btn-ghost sm">Cancel</button>

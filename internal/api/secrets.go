@@ -211,7 +211,7 @@ func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleLookupSecrets is specifically tailored for browser extensions to query secrets
-// matching a website's domain or url.
+// matching a website's domain or url, and optionally filtered by kind (e.g. password, api_key).
 func (s *Server) handleLookupSecrets(w http.ResponseWriter, r *http.Request) {
 	user, err := s.authenticate(r)
 	if err != nil {
@@ -248,6 +248,17 @@ func (s *Server) handleLookupSecrets(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to lookup secrets")
 			return
 		}
+	}
+
+	kindFilter := strings.TrimSpace(r.URL.Query().Get("kind"))
+	if kindFilter != "" {
+		var filtered []models.Secret
+		for _, sec := range secrets {
+			if strings.EqualFold(sec.Kind, kindFilter) {
+				filtered = append(filtered, sec)
+			}
+		}
+		secrets = filtered
 	}
 
 	for i := range secrets {

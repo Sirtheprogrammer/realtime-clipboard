@@ -1,45 +1,84 @@
 /* ============================================================
    Clipboard Vault — Content Script
-   Automatic credential detection, autofill, and automatic saving
+   Automatic credential detection, autofill, automatic saving,
+   and developer API key & token detection across all platforms
    ============================================================ */
 
 (() => {
-  // Prevent duplicate injection
   if (window.__clipboardVaultLoaded) return;
   window.__clipboardVaultLoaded = true;
 
   let pageSecrets = [];
+  let pageApiKeys = [];
   let autofilled = false;
   let activeDropdown = null;
+  const capturedValues = new Set();
 
-  // ───────────────────────── Initialization & Auto-Detection ─────────────────────────
+  // ───────────────────────── API Key & Token Signatures ─────────────────────────
+
+  const TOKEN_PATTERNS = [
+    { regex: /^ghp_[A-Za-z0-9_]{36,}$/, name: "GitHub Personal Access Token", platform: "github.com", kind: "api_key" },
+    { regex: /^github_pat_[A-Za-z0-9_]{80,}$/, name: "GitHub Fine-Grained Token", platform: "github.com", kind: "api_key" },
+    { regex: /^gho_[A-Za-z0-9_]{36,}$/, name: "GitHub OAuth Access Token", platform: "github.com", kind: "api_key" },
+    { regex: /^ghu_[A-Za-z0-9_]{36,}$/, name: "GitHub User Token", platform: "github.com", kind: "api_key" },
+    { regex: /^ghs_[A-Za-z0-9_]{36,}$/, name: "GitHub Server Token", platform: "github.com", kind: "api_key" },
+    { regex: /^ghr_[A-Za-z0-9_]{36,}$/, name: "GitHub Refresh Token", platform: "github.com", kind: "api_key" },
+
+    { regex: /^sk-(?:proj-)?[A-Za-z0-9_-]{20,}$/, name: "OpenAI API Key", platform: "openai.com", kind: "api_key" },
+    { regex: /^sk-ant-[A-Za-z0-9_-]{20,}$/, name: "Anthropic Claude API Key", platform: "anthropic.com", kind: "api_key" },
+    { regex: /^AIzaSy[A-Za-z0-9_-]{33}$/, name: "Google / Gemini API Key", platform: "google.com", kind: "api_key" },
+    { regex: /^gsk_[A-Za-z0-9]{40,}$/, name: "Groq Cloud API Key", platform: "groq.com", kind: "api_key" },
+    { regex: /^hf_[A-Za-z0-9]{34,}$/, name: "Hugging Face Access Token", platform: "huggingface.co", kind: "api_key" },
+
+    { regex: /^sk_live_[0-9a-zA-Z]{24,}$/, name: "Stripe Live Secret Key", platform: "stripe.com", kind: "api_key" },
+    { regex: /^sk_test_[0-9a-zA-Z]{24,}$/, name: "Stripe Test Secret Key", platform: "stripe.com", kind: "api_key" },
+    { regex: /^rk_live_[0-9a-zA-Z]{24,}$/, name: "Stripe Restricted Key", platform: "stripe.com", kind: "api_key" },
+    { regex: /^pk_live_[0-9a-zA-Z]{24,}$/, name: "Stripe Publishable Key", platform: "stripe.com", kind: "api_key" },
+
+    { regex: /^(?:AKIA|ASIA)[0-9A-Z]{16}$/, name: "AWS Access Key ID", platform: "aws.amazon.com", kind: "api_key" },
+    { regex: /^re_[A-Za-z0-9]{24,}$/, name: "Resend API Key", platform: "resend.com", kind: "api_key" },
+    { regex: /^SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/, name: "SendGrid API Key", platform: "sendgrid.com", kind: "api_key" },
+    { regex: /^xox[baprs]-[0-9A-Za-z-]{24,}$/, name: "Slack Token", platform: "slack.com", kind: "api_key" },
+  ];
+
+  function identifyToken(val) {
+    if (!val || typeof val !== "string") return null;
+    const trimmed = val.trim();
+    for (const pat of TOKEN_PATTERNS) {
+      if (pat.regex.test(trimmed)) {
+        return { ...pat, value: trimmed };
+      }
+    }
+    return null;
+  }
+
+  // ───────────────────────── Main Initialization ─────────────────────────
 
   init();
 
   function init() {
-    // 1. Initial query for stored credentials on page load
+    // 1. Initial queries for stored credentials & API keys
     fetchMatchingCredentials();
+    fetchMatchingApiKeys();
 
-    // 2. Watch for dynamic form additions (SPAs, login modals, React/Vue dialogs)
+    // 2. Watch for dynamic inputs (SPAs, modals, GitHub token creation)
     const observer = new MutationObserver(debounce(() => {
-      if (document.querySelector('input[type="password"]')) {
-        if (!autofilled && pageSecrets.length > 0) {
-          applyAutofill();
-        } else if (pageSecrets.length === 0) {
-          fetchMatchingCredentials();
-        }
-      }
+      checkGitHubTokenCreation();
+      checkDynamicForms();
     }, 250));
 
-    observer.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
 
-    // 3. Form submit & credential capture listeners
+    // 3. GitHub immediate token generator check
+    checkGitHubTokenCreation();
+
+    // 4. Form submit & credential capture listeners
     attachFormCaptureListeners();
 
-    // 4. Message listener from popup (for manual trigger)
+    // 5. Detect copied API keys / tokens from screen
+    attachClipboardCopyListener();
+
+    // 6. Message listener from popup
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       if (message.type === "AUTOFILL") {
         const success = performAutofill(message.username, message.password);
@@ -49,7 +88,68 @@
     });
   }
 
-  // ───────────────────────── Query & Autofill Logic ─────────────────────────
+  // ───────────────────────── GitHub Token Special Detector ─────────────────────────
+
+  function checkGitHubTokenCreation() {
+    if (!window.location.hostname.includes("github.com")) return;
+
+    // Classic & fine-grained token display inputs
+    const selectors = [
+      '#new-oauth-token',
+      'input[id*="token"]',
+      'clipboard-copy[value^="ghp_"]',
+      'clipboard-copy[value^="github_pat_"]',
+      '.token-snippet',
+      '.new-token',
+    ];
+
+    for (const sel of selectors) {
+      const el = document.querySelector(sel);
+      if (!el) continue;
+
+      const tokenVal = (el.value || el.getAttribute("value") || el.innerText || "").trim();
+      const identified = identifyToken(tokenVal);
+      if (identified && !capturedValues.has(tokenVal)) {
+        capturedValues.add(tokenVal);
+        triggerAutoSave(
+          "Personal Access Token",
+          tokenVal,
+          identified.name,
+          "github.com",
+          identified.kind,
+          "Auto-detected on GitHub Settings"
+        );
+        break;
+      }
+    }
+  }
+
+  // ───────────────────────── Clipboard Copy Detection ─────────────────────────
+
+  function attachClipboardCopyListener() {
+    document.addEventListener("copy", () => {
+      // Allow the native copy to finish then read selection
+      setTimeout(() => {
+        try {
+          const text = window.getSelection().toString().trim();
+          const identified = identifyToken(text);
+          if (identified && !capturedValues.has(identified.value)) {
+            capturedValues.add(identified.value);
+            triggerAutoSave(
+              identified.name,
+              identified.value,
+              identified.name,
+              window.location.hostname || identified.platform,
+              identified.kind,
+              `Copied from ${window.location.hostname}`
+            );
+          }
+        } catch {}
+      }, 50);
+    });
+  }
+
+  // ───────────────────────── Query Logic ─────────────────────────
 
   function fetchMatchingCredentials() {
     try {
@@ -66,24 +166,49 @@
           }
         }
       );
-    } catch {
-      // Extension context may be reloaded
-    }
+    } catch {}
   }
+
+  function fetchMatchingApiKeys() {
+    try {
+      chrome.runtime.sendMessage(
+        {
+          type: "QUERY_API_KEYS",
+          hostname: window.location.hostname,
+        },
+        (res) => {
+          if (chrome.runtime.lastError || !res) return;
+          if (res.apiKeys && res.apiKeys.length > 0) {
+            pageApiKeys = res.apiKeys;
+            attachApiKeyInputListeners();
+          }
+        }
+      );
+    } catch {}
+  }
+
+  function checkDynamicForms() {
+    if (document.querySelector('input[type="password"]')) {
+      if (!autofilled && pageSecrets.length > 0) {
+        applyAutofill();
+      } else if (pageSecrets.length === 0) {
+        fetchMatchingCredentials();
+      }
+    }
+    attachApiKeyInputListeners();
+  }
+
+  // ───────────────────────── Autofill Password ─────────────────────────
 
   function applyAutofill() {
     const passwordInputs = Array.from(document.querySelectorAll('input[type="password"]')).filter(isFieldVisible);
     if (passwordInputs.length === 0) return;
 
     if (pageSecrets.length === 1) {
-      // Single credential: Automatic instant fill
       const sec = pageSecrets[0];
       const filled = performAutofill(sec.username, sec.value);
-      if (filled) {
-        autofilled = true;
-      }
+      if (filled) autofilled = true;
     } else if (pageSecrets.length > 1) {
-      // Multiple credentials: Attach quick selector dropdown to username or password input
       attachCredentialPicker(pageSecrets);
     }
   }
@@ -93,17 +218,12 @@
     if (passwordInputs.length === 0) return false;
 
     const targetPassword = passwordInputs[0];
-    if (password) {
-      setInputValue(targetPassword, password);
-    }
+    if (password) setInputValue(targetPassword, password);
 
     if (username) {
       const usernameInput = findUsernameInput(targetPassword);
-      if (usernameInput) {
-        setInputValue(usernameInput, username);
-      }
+      if (usernameInput) setInputValue(usernameInput, username);
     }
-
     return true;
   }
 
@@ -126,11 +246,8 @@
 
   function setInputValue(input, val) {
     if (!input || input.value === val) return;
-
     input.focus();
     input.value = val;
-
-    // Dispatch synthetic events for React, Vue, Angular, Svelte, and native listeners
     input.dispatchEvent(new Event("input", { bubbles: true, cancelable: true }));
     input.dispatchEvent(new Event("change", { bubbles: true, cancelable: true }));
     input.blur();
@@ -148,7 +265,117 @@
     );
   }
 
-  // ───────────────────────── Multi-Account In-Field Picker ─────────────────────────
+  // ───────────────────────── API Key Autofill & Detection ─────────────────────────
+
+  function isApiKeyField(el) {
+    if (!el || !isFieldVisible(el)) return false;
+    if (el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return false;
+    const meta = `${el.id || ""} ${el.name || ""} ${el.placeholder || ""} ${el.getAttribute("aria-label") || ""}`.toLowerCase();
+    return /api[_-]?key|access[_-]?token|secret[_-]?key|auth[_-]?token|bearer|pat[_-]?token|personal[_-]?access|openai[_-]?key|github[_-]?token/i.test(meta);
+  }
+
+  function attachApiKeyInputListeners() {
+    const inputs = Array.from(document.querySelectorAll('input, textarea')).filter(isApiKeyField);
+    inputs.forEach((input) => {
+      if (input.dataset.cbVaultApiKeyBound) return;
+      input.dataset.cbVaultApiKeyBound = "true";
+
+      // Autofill picker on focus if we have saved API keys
+      input.addEventListener("focus", () => {
+        if (pageApiKeys.length > 0) {
+          showApiKeyPicker(input, pageApiKeys);
+        }
+      });
+
+      // Auto-save on blur / input change if valid API key typed
+      input.addEventListener("change", () => {
+        const val = input.value.trim();
+        const identified = identifyToken(val);
+        if (identified && !capturedValues.has(val)) {
+          capturedValues.add(val);
+          triggerAutoSave(
+            identified.name,
+            val,
+            identified.name,
+            window.location.hostname,
+            "api_key"
+          );
+        }
+      });
+    });
+  }
+
+  function showApiKeyPicker(targetInput, keys) {
+    if (activeDropdown) activeDropdown.remove();
+
+    const rect = targetInput.getBoundingClientRect();
+    const dropdown = document.createElement("div");
+    dropdown.id = "clipboard-vault-api-picker";
+    dropdown.style.cssText = `
+      position: fixed;
+      top: ${rect.bottom + window.scrollY + 4}px;
+      left: ${rect.left + window.scrollX}px;
+      width: ${Math.max(rect.width, 260)}px;
+      background: #121418;
+      border: 1px solid #2e3340;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      z-index: 2147483647;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 12.5px;
+      color: #f4f5f8;
+      padding: 6px;
+      box-sizing: border-box;
+    `;
+
+    const header = document.createElement("div");
+    header.style.cssText = `
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #8b92a5;
+      padding: 4px 8px 6px;
+      border-bottom: 1px solid #232733;
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    `;
+    header.innerHTML = `<span>🔑 Clipboard Vault</span><span>Saved API Keys</span>`;
+    dropdown.appendChild(header);
+
+    keys.forEach((key) => {
+      const item = document.createElement("div");
+      item.style.cssText = `
+        padding: 8px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        transition: background 0.1s;
+      `;
+      const masked = key.value ? `${key.value.slice(0, 7)}••••••••${key.value.slice(-4)}` : "••••••••";
+      item.innerHTML = `
+        <b style="font-size: 12px; color: #ffffff;">${escapeHtml(key.title)}</b>
+        <span style="font-size: 10.5px; color: #8b92a5; font-family: ui-monospace, monospace;">${escapeHtml(masked)}</span>
+      `;
+      item.addEventListener("mouseenter", () => { item.style.background = "#232733"; });
+      item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
+      item.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        setInputValue(targetInput, key.value);
+        dropdown.remove();
+        activeDropdown = null;
+      });
+      dropdown.appendChild(item);
+    });
+
+    document.body.appendChild(dropdown);
+    activeDropdown = dropdown;
+  }
+
+  // ───────────────────────── Multi-Account Login Picker ─────────────────────────
 
   function attachCredentialPicker(secrets) {
     const passwordInput = document.querySelector('input[type="password"]');
@@ -209,12 +436,8 @@
           <b style="font-size: 12px; color: #ffffff;">${escapeHtml(sec.username || sec.title)}</b>
           <span style="font-size: 10.5px; color: #8b92a5;">${escapeHtml(sec.title || "Saved Password")}</span>
         `;
-        item.addEventListener("mouseenter", () => {
-          item.style.background = "#232733";
-        });
-        item.addEventListener("mouseleave", () => {
-          item.style.background = "transparent";
-        });
+        item.addEventListener("mouseenter", () => { item.style.background = "#232733"; });
+        item.addEventListener("mouseleave", () => { item.style.background = "transparent"; });
         item.addEventListener("mousedown", (e) => {
           e.preventDefault();
           performAutofill(sec.username, sec.value);
@@ -237,37 +460,37 @@
     });
   }
 
-  // ───────────────────────── Automatic Save & Update ─────────────────────────
+  // ───────────────────────── Form Capture Listeners ─────────────────────────
 
   function attachFormCaptureListeners() {
-    // 1. Submit event listener
     document.addEventListener("submit", handleFormSubmit, true);
 
-    // 2. Fallback: Listen for Enter key on password inputs
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && e.target && e.target.matches('input[type="password"]')) {
-        const form = e.target.closest("form");
-        if (form) {
-          handleFormSubmit({ target: form });
-        } else {
-          captureStandaloneInputs(e.target);
+      if (e.key === "Enter") {
+        if (e.target && e.target.matches('input[type="password"]')) {
+          const form = e.target.closest("form");
+          if (form) handleFormSubmit({ target: form });
+          else captureStandaloneInputs(e.target);
+        } else if (e.target && isApiKeyField(e.target)) {
+          captureApiKeyInput(e.target);
         }
       }
     }, true);
 
-    // 3. Fallback: Listen for clicks on buttons with login/submit keywords
     document.addEventListener("click", (e) => {
       const btn = e.target.closest('button, input[type="submit"], a[role="button"]');
       if (!btn) return;
 
       const text = (btn.innerText || btn.value || "").toLowerCase();
-      if (/log\s*in|sign\s*in|submit|continue|next|authorize/i.test(text)) {
+      if (/log\s*in|sign\s*in|submit|continue|next|authorize|save\s*key|create\s*token/i.test(text)) {
         const form = btn.closest("form");
         if (form) {
           handleFormSubmit({ target: form });
         } else {
           const pass = document.querySelector('input[type="password"]');
           if (pass && pass.value) captureStandaloneInputs(pass);
+          const apiKey = Array.from(document.querySelectorAll('input, textarea')).find(isApiKeyField);
+          if (apiKey && apiKey.value) captureApiKeyInput(apiKey);
         }
       }
     }, true);
@@ -277,6 +500,14 @@
     const form = e.target;
     if (!form || !(form instanceof HTMLElement)) return;
 
+    // Check for API key field first
+    const apiKeyField = Array.from(form.querySelectorAll('input, textarea')).find(isApiKeyField);
+    if (apiKeyField && apiKeyField.value) {
+      captureApiKeyInput(apiKeyField);
+      return;
+    }
+
+    // Otherwise standard password form
     const passwordInput = form.querySelector('input[type="password"]');
     if (!passwordInput || !passwordInput.value) return;
 
@@ -292,38 +523,54 @@
     const usernameInput = findUsernameInput(passwordInput);
     const username = usernameInput ? usernameInput.value : "";
     const password = passwordInput.value;
-
     triggerAutoSave(username, password);
   }
 
-  function triggerAutoSave(username, password) {
-    if (!password) return;
+  function captureApiKeyInput(input) {
+    const val = input.value.trim();
+    if (!val || capturedValues.has(val)) return;
+    capturedValues.add(val);
+
+    const identified = identifyToken(val);
+    const title = identified ? identified.name : `${window.location.hostname} API Key`;
+    const platform = identified ? identified.platform : window.location.hostname;
+
+    triggerAutoSave(title, val, title, platform, "api_key");
+  }
+
+  function triggerAutoSave(username, value, title, platform, kind = "password", notes = "") {
+    if (!value) return;
+
+    const hostname = platform || window.location.hostname;
+    const finalTitle = title || (hostname ? `${hostname.charAt(0).toUpperCase() + hostname.slice(1)} ${kind === "api_key" ? "API Key" : "Account"}` : "Saved Secret");
 
     try {
       chrome.runtime.sendMessage(
         {
           type: "AUTO_SAVE_CREDENTIAL",
           url: window.location.href,
-          hostname: window.location.hostname,
+          hostname: hostname,
           username: username,
-          password: password,
-          title: document.title || window.location.hostname,
+          password: value,
+          value: value,
+          title: finalTitle,
+          kind: kind,
+          notes: notes,
         },
         (res) => {
           if (chrome.runtime.lastError || !res) return;
 
           if (res.success) {
+            const icon = kind === "api_key" ? "🔑" : "🔒";
             if (res.status === "created") {
-              showInPageNotification("🔒 Clipboard Vault: Saved password for " + (username || window.location.hostname));
+              showInPageNotification(`${icon} Clipboard Vault: Saved ${finalTitle}`);
             } else if (res.status === "updated") {
-              showInPageNotification("🔒 Clipboard Vault: Updated password for " + (username || window.location.hostname));
+              showInPageNotification(`${icon} Clipboard Vault: Updated ${finalTitle}`);
             }
           }
         }
       );
-    } catch {
-      // Context might be invalidated on page unload
-    }
+    } catch {}
   }
 
   // ───────────────────────── In-Page Notification ─────────────────────────
@@ -368,8 +615,6 @@
       setTimeout(() => toast.remove(), 250);
     }, 3500);
   }
-
-  // ───────────────────────── Helpers ─────────────────────────
 
   function debounce(func, wait) {
     let timeout;

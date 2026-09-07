@@ -69,6 +69,9 @@ func (s *Server) Routes() http.Handler {
 	// Extension Download
 	mux.HandleFunc("GET /api/extension/download", s.handleExtensionDownload)
 	mux.HandleFunc("GET /extension.zip", s.handleExtensionDownload)
+	mux.HandleFunc("GET /api/extension/version", s.handleExtensionVersion)
+	mux.HandleFunc("GET /api/extension/updates.xml", s.handleExtensionUpdatesXML)
+	mux.HandleFunc("GET /api/extension/updates.json", s.handleExtensionUpdatesJSON)
 
 	s.mountStatic(mux)
 

@@ -1,3 +1,12 @@
+function showUpdateBanner(info) {
+  const banner = $("updateBanner");
+  if (!banner) return;
+  banner.hidden = false;
+  banner.style.display = "block";
+  $("updateVerText").textContent = `v${info.version} is available`;
+  $("updateDownloadLink").href = info.downloadUrl || info.releaseUrl || "#";
+}
+
 /* ============================================================
    Clipboard Vault — Extension Popup Logic
    Manages credentials, autofill, and active tab domain syncing
@@ -48,6 +57,14 @@ async function loadStoredConfig() {
   }
   if (data.token) state.token = data.token;
   $("serverUrlInput").value = state.serverUrl;
+
+  // Version & Updates
+  const currentVer = chrome.runtime.getManifest().version;
+  if ($("extCurrentVersion")) $("extCurrentVersion").textContent = `v${currentVer}`;
+  const updateData = await chrome.storage.local.get(["updateInfo"]);
+  if (updateData.updateInfo && updateData.updateInfo.available) {
+    showUpdateBanner(updateData.updateInfo);
+  }
   if ($("toggleAutoFill")) $("toggleAutoFill").checked = data.autoFill !== false;
   if ($("toggleAutoSave")) $("toggleAutoSave").checked = data.autoSave !== false;
 
@@ -338,6 +355,19 @@ function wireUI() {
     showToast(e.target.checked ? "Auto-save enabled" : "Auto-save disabled");
   });
 
+  // Check for updates
+  $("checkUpdatesBtn")?.addEventListener("click", () => {
+    showToast("Checking for updates...");
+    chrome.runtime.sendMessage({ type: "CHECK_FOR_UPDATES" }, (res) => {
+      if (res && res.updateAvailable) {
+        showUpdateBanner(res.updateInfo);
+        showToast(`Update v${res.updateInfo.version} available!`);
+      } else {
+        showToast("Extension is up to date");
+      }
+    });
+  });
+
   // Save server url
   $("saveServerBtn").addEventListener("click", async () => {
     const newUrl = $("serverUrlInput").value.trim().replace(/\/+$/, "");
@@ -456,7 +486,8 @@ function wireUI() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${state.token}`,
         },
-        body: JSON.stringify({ title, kind: "password", username, url, value }),
+        const kind = $("newKind") ? $("newKind").value : "password";
+        body: JSON.stringify({ title, kind, username, url, value }),
       });
 
       const data = await res.json();
@@ -475,6 +506,7 @@ function wireUI() {
 }
 
 function openSecretModal(prefill = {}) {
+  if ($("newKind")) $("newKind").value = prefill.kind || "password";
   $("newTitle").value = prefill.title || "";
   $("newUsername").value = prefill.username || "";
   $("newURL").value = prefill.url || "";
