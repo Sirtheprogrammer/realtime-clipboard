@@ -18,7 +18,7 @@
     <b>Clipboard Vault</b>
   </div>
   <div class="ext-header-actions">
-    <button id="settingsToggleBtn" class="icon-btn" title="Server Settings">
+    <button id="settingsToggleBtn" class="icon-btn" title="Settings">
       <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
         <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
@@ -26,15 +26,25 @@
   </div>
 </header>
 
-<!-- Server Settings Panel (collapsible) -->
+<!-- Server & Automation Settings Panel (collapsible) -->
 <section id="settingsPanel" class="ext-panel" hidden>
   <div class="panel-header">
     <span>Clipboard Server</span>
     <span id="serverStatusDot" class="status-dot"></span>
   </div>
   <div class="input-group">
-    <input type="url" id="serverUrlInput" class="ext-input" placeholder="http://localhost:8080">
+    <input type="url" id="serverUrlInput" class="ext-input" placeholder="https://clip.codesky.tech">
     <button id="saveServerBtn" class="ext-btn ext-btn-primary sm">Save</button>
+  </div>
+  <div class="settings-toggles">
+    <label class="setting-toggle-row">
+      <span>Auto-fill matching logins</span>
+      <input type="checkbox" id="toggleAutoFill" checked>
+    </label>
+    <label class="setting-toggle-row">
+      <span>Auto-save new logins</span>
+      <input type="checkbox" id="toggleAutoSave" checked>
+    </label>
   </div>
 </section>
 
@@ -114,11 +124,11 @@
 </main>
 
 <!-- Add / Edit Secret Modal (overlay within extension popup) -->
-<div id="secretModal" class="ext-modal" hidden>
+<div id="secretModal" class="ext-modal" hidden style="display: none;">
   <div class="ext-modal-card">
     <div class="ext-modal-head">
       <b id="secretModalTitle">New Credential</b>
-      <button id="closeSecretModal" class="icon-btn">&times;</button>
+      <button type="button" id="closeSecretModal" class="icon-btn" aria-label="Close">&times;</button>
     </div>
     <form id="newSecretForm">
       <label class="ext-label">

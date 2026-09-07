@@ -39,10 +39,17 @@ window.addEventListener("focus", async () => {
 /* ───────────────────────── Config & State ───────────────────────── */
 
 async function loadStoredConfig() {
-  const data = await chrome.storage.local.get(["serverUrl", "token", "pendingSave"]);
-  if (data.serverUrl) state.serverUrl = data.serverUrl.replace(/\/+$/, "");
+  const data = await chrome.storage.local.get(["serverUrl", "token", "pendingSave", "autoFill", "autoSave"]);
+  if (data.serverUrl && data.serverUrl !== "http://localhost:8080") {
+    state.serverUrl = data.serverUrl.replace(/\/+$/, "");
+  } else {
+    state.serverUrl = "https://clip.codesky.tech";
+    await chrome.storage.local.set({ serverUrl: state.serverUrl });
+  }
   if (data.token) state.token = data.token;
   $("serverUrlInput").value = state.serverUrl;
+  if ($("toggleAutoFill")) $("toggleAutoFill").checked = data.autoFill !== false;
+  if ($("toggleAutoSave")) $("toggleAutoSave").checked = data.autoSave !== false;
 
   if (data.pendingSave && data.pendingSave.url) {
     showPendingBanner(data.pendingSave);
@@ -321,6 +328,16 @@ function wireUI() {
     $("settingsPanel").hidden = !$("settingsPanel").hidden;
   });
 
+  // Automation toggles
+  $("toggleAutoFill")?.addEventListener("change", async (e) => {
+    await chrome.storage.local.set({ autoFill: e.target.checked });
+    showToast(e.target.checked ? "Auto-fill enabled" : "Auto-fill disabled");
+  });
+  $("toggleAutoSave")?.addEventListener("change", async (e) => {
+    await chrome.storage.local.set({ autoSave: e.target.checked });
+    showToast(e.target.checked ? "Auto-save enabled" : "Auto-save disabled");
+  });
+
   // Save server url
   $("saveServerBtn").addEventListener("click", async () => {
     const newUrl = $("serverUrlInput").value.trim().replace(/\/+$/, "");
@@ -409,8 +426,11 @@ function wireUI() {
   });
 
   // Modal actions
-  $("closeSecretModal").addEventListener("click", closeSecretModal);
-  $("cancelSecretBtn").addEventListener("click", closeSecretModal);
+  $("closeSecretModal")?.addEventListener("click", closeSecretModal);
+  $("cancelSecretBtn")?.addEventListener("click", closeSecretModal);
+  $("secretModal")?.addEventListener("click", (e) => {
+    if (e.target === $("secretModal")) closeSecretModal();
+  });
 
   // Generate password
   $("extGenPassBtn").addEventListener("click", () => {
@@ -459,11 +479,19 @@ function openSecretModal(prefill = {}) {
   $("newUsername").value = prefill.username || "";
   $("newURL").value = prefill.url || "";
   $("newValue").value = prefill.value || "";
-  $("secretModal").hidden = false;
+  const modal = $("secretModal");
+  if (modal) {
+    modal.hidden = false;
+    modal.style.display = "grid";
+  }
 }
 
 function closeSecretModal() {
-  $("secretModal").hidden = true;
+  const modal = $("secretModal");
+  if (modal) {
+    modal.hidden = true;
+    modal.style.display = "none";
+  }
 }
 
 /* ───────────────────────── Helpers ───────────────────────── */
