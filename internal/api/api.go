@@ -65,6 +65,7 @@ func (s *Server) Routes() http.Handler {
 	mux.HandleFunc("GET /api/secrets/{id}", s.handleGetSecret)
 	mux.HandleFunc("PUT /api/secrets/{id}", s.handleUpdateSecret)
 	mux.HandleFunc("DELETE /api/secrets/{id}", s.handleDeleteSecret)
+	mux.HandleFunc("POST /api/secrets/import", s.handleImportSecrets)
 
 	// Extension Download
 	mux.HandleFunc("GET /api/extension/download", s.handleExtensionDownload)

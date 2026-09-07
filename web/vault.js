@@ -245,6 +245,8 @@ function wireVaultEvents(api, toast) {
     renderSecretsList(toast);
   });
 
+  wireImportEvents(api, toast);
+
   // New Secret Button
   $("newSecretBtn")?.addEventListener("click", () => {
     openSecretDrawer(null);
@@ -515,4 +517,204 @@ function generateSecurePassword(length = 24) {
     result += chars[array[i] % chars.length];
   }
   return result;
+}
+
+/* ───────────────────────── Password CSV Import ───────────────────────── */
+function wireImportEvents(api, toast) {
+  $("importPasswordsBtn")?.addEventListener("click", openImportModal);
+  $("importModalClose")?.addEventListener("click", closeImportModal);
+  $("cancelImportBtn")?.addEventListener("click", closeImportModal);
+  $("importModal")?.addEventListener("click", (e) => {
+    if (e.target === $("importModal")) closeImportModal();
+  });
+
+  const fileInput = $("csvFileInput");
+  const dropZone = $("csvDropZone");
+
+  $("browseCsvBtn")?.addEventListener("click", () => fileInput?.click());
+  dropZone?.addEventListener("click", (e) => {
+    if (e.target !== $("browseCsvBtn")) fileInput?.click();
+  });
+
+  dropZone?.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropZone.classList.add("dragover");
+  });
+  dropZone?.addEventListener("dragleave", () => dropZone.classList.remove("dragover"));
+  dropZone?.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropZone.classList.remove("dragover");
+    if (e.dataTransfer?.files?.length) {
+      handleSelectedCSVFile(e.dataTransfer.files[0], toast);
+    }
+  });
+
+  fileInput?.addEventListener("change", (e) => {
+    if (e.target.files?.length) {
+      handleSelectedCSVFile(e.target.files[0], toast);
+    }
+  });
+
+  $("confirmImportBtn")?.addEventListener("click", async () => {
+    if (!vaultState.pendingImport || !vaultState.pendingImport.length) {
+      toast("No passwords selected for import", "error");
+      return;
+    }
+
+    const confirmBtn = $("confirmImportBtn");
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Encrypting & Importing...";
+
+    try {
+      const res = await api("/api/secrets/import", {
+        method: "POST",
+        body: JSON.stringify({ secrets: vaultState.pendingImport }),
+      });
+
+      toast(`Successfully imported ${res.imported} passwords into vault!`);
+      closeImportModal();
+
+      // Refresh secrets list
+      const fresh = await api("/api/secrets");
+      vaultState.secrets = fresh.secrets || [];
+      renderSecretsList(toast);
+    } catch (err) {
+      toast(err.message || "Failed to import passwords", "error");
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = `<svg><use href="#i-shield"/></svg> Import &amp; Save Encrypted`;
+    }
+  });
+}
+
+function openImportModal() {
+  const modal = $("importModal");
+  if (!modal) return;
+  modal.hidden = false;
+  $("importPreviewArea").hidden = true;
+  $("dropzoneTitle").textContent = "Choose or drop passwords.csv";
+  $("dropzoneSubtitle").textContent = "Supports Chrome, Firefox, Edge, Safari, and Bitwarden export files";
+  if ($("csvFileInput")) $("csvFileInput").value = "";
+  vaultState.pendingImport = [];
+}
+
+function closeImportModal() {
+  const modal = $("importModal");
+  if (modal) modal.hidden = true;
+  vaultState.pendingImport = [];
+}
+
+function handleSelectedCSVFile(file, toast) {
+  if (!file.name.endsWith(".csv") && file.type !== "text/csv" && file.type !== "application/vnd.ms-excel") {
+    toast("Please select a valid .csv file", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    const parsed = parseClientCSV(text);
+    if (!parsed.length) {
+      toast("No credentials found in CSV. Please verify file format.", "error");
+      return;
+    }
+
+    vaultState.pendingImport = parsed;
+    $("dropzoneTitle").textContent = file.name;
+    $("dropzoneSubtitle").textContent = `${(file.size / 1024).toFixed(1)} KB • ${parsed.length} accounts found`;
+
+    $("previewCountBadge").textContent = `${parsed.length} Logins Ready`;
+    const tbody = $("previewTableBody");
+    tbody.innerHTML = "";
+
+    parsed.slice(0, 5).forEach((p) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><b>${escapeHtml(p.title || cleanDomain(p.url))}</b></td>
+        <td>${escapeHtml(p.username || "—")}</td>
+        <td>••••••••</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (parsed.length > 5) {
+      const moreTr = document.createElement("tr");
+      moreTr.innerHTML = `<td colspan="3" style="text-align: center; color: var(--ink-3); font-style: italic;">... and ${parsed.length - 5} more logins</td>`;
+      tbody.appendChild(moreTr);
+    }
+
+    $("importPreviewArea").hidden = false;
+  };
+  reader.readAsText(file);
+}
+
+function parseClientCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  // Robust line tokenizer supporting quotes
+  const tokenizeLine = (line) => {
+    const tokens = [];
+    let current = "";
+    let insideQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (insideQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === "," && !insideQuotes) {
+        tokens.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    tokens.push(current.trim());
+    return tokens.map((t) => t.replace(/^["']|["']$/g, "").trim());
+  };
+
+  const headers = tokenizeLine(lines[0]).map((h) => h.toLowerCase());
+
+  const colIdx = (...candidates) => {
+    for (const c of candidates) {
+      const idx = headers.indexOf(c);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  const titleIdx = colIdx("name", "title", "folder");
+  const urlIdx = colIdx("url", "login_uri", "uri", "website", "formactionorigin");
+  const userIdx = colIdx("username", "login_username", "user", "login", "email");
+  const passIdx = colIdx("password", "login_password", "pass");
+  const notesIdx = colIdx("notes", "note");
+
+  if (passIdx === -1) return [];
+
+  const results = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = tokenizeLine(lines[i]);
+    const password = cols[passIdx];
+    if (!password) continue;
+
+    const title = titleIdx !== -1 ? cols[titleIdx] : "";
+    const url = urlIdx !== -1 ? cols[urlIdx] : "";
+    const username = userIdx !== -1 ? cols[userIdx] : "";
+    const notes = notesIdx !== -1 ? cols[notesIdx] : "";
+
+    results.push({
+      title: title || cleanDomain(url) || "Imported Account",
+      url: url || "",
+      username: username || "",
+      value: password,
+      notes: notes || "",
+      kind: "password",
+    });
+  }
+
+  return results;
 }

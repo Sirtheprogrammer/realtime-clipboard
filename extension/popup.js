@@ -368,6 +368,54 @@ function wireUI() {
     });
   });
 
+  // Import Browser Passwords
+  $("extImportBtn")?.addEventListener("click", () => {
+    if (!state.token) {
+      showToast("Please sign in first to import passwords");
+      showAuthView();
+      return;
+    }
+    $("extCsvFile")?.click();
+  });
+
+  $("extCsvFile")?.addEventListener("change", async (e) => {
+    if (!e.target.files?.length) return;
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const text = ev.target.result;
+        const parsed = parseClientCSV(text);
+        if (!parsed.length) {
+          showToast("No passwords found in CSV file");
+          return;
+        }
+
+        showToast(`Importing ${parsed.length} passwords...`);
+        const res = await fetch(`${state.serverUrl}/api/secrets/import`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${state.token}`,
+          },
+          body: JSON.stringify({ secrets: parsed }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Import failed");
+
+        showToast(`Imported ${data.imported} passwords!`);
+        await loadDomainSecrets();
+        await loadAllSecrets();
+      } catch (err) {
+        showToast(err.message || "Failed to import CSV");
+      } finally {
+        $("extCsvFile").value = "";
+      }
+    };
+    reader.readAsText(file);
+  });
+
   // Save server url
   $("saveServerBtn").addEventListener("click", async () => {
     const newUrl = $("serverUrlInput").value.trim().replace(/\/+$/, "");
@@ -565,4 +613,74 @@ function generateSecurePassword(length = 24) {
     result += chars[array[i] % chars.length];
   }
   return result;
+}
+
+function parseClientCSV(text) {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+  if (lines.length < 2) return [];
+
+  const tokenizeLine = (line) => {
+    const tokens = [];
+    let current = "";
+    let insideQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (insideQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else {
+          insideQuotes = !insideQuotes;
+        }
+      } else if (char === "," && !insideQuotes) {
+        tokens.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    tokens.push(current.trim());
+    return tokens.map((t) => t.replace(/^["']|["']$/g, "").trim());
+  };
+
+  const headers = tokenizeLine(lines[0]).map((h) => h.toLowerCase());
+
+  const colIdx = (...candidates) => {
+    for (const c of candidates) {
+      const idx = headers.indexOf(c);
+      if (idx !== -1) return idx;
+    }
+    return -1;
+  };
+
+  const titleIdx = colIdx("name", "title", "folder");
+  const urlIdx = colIdx("url", "login_uri", "uri", "website", "formactionorigin");
+  const userIdx = colIdx("username", "login_username", "user", "login", "email");
+  const passIdx = colIdx("password", "login_password", "pass");
+  const notesIdx = colIdx("notes", "note");
+
+  if (passIdx === -1) return [];
+
+  const results = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = tokenizeLine(lines[i]);
+    const password = cols[passIdx];
+    if (!password) continue;
+
+    const title = titleIdx !== -1 ? cols[titleIdx] : "";
+    const url = urlIdx !== -1 ? cols[urlIdx] : "";
+    const username = userIdx !== -1 ? cols[userIdx] : "";
+    const notes = notesIdx !== -1 ? cols[notesIdx] : "";
+
+    results.push({
+      title: title || cleanDomain(url) || "Imported Account",
+      url: url || "",
+      username: username || "",
+      value: password,
+      notes: notes || "",
+      kind: "password",
+    });
+  }
+
+  return results;
 }

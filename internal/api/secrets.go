@@ -1,7 +1,11 @@
 package api
 
 import (
+	"encoding/csv"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -274,4 +278,220 @@ func (s *Server) handleLookupSecrets(w http.ResponseWriter, r *http.Request) {
 		secrets = []models.Secret{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"secrets": secrets})
+}
+
+type importSecretsRequest struct {
+	Secrets []secretPayload `json:"secrets"`
+}
+
+func (s *Server) handleImportSecrets(w http.ResponseWriter, r *http.Request) {
+	user, err := s.authenticate(r)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "unauthorized")
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	var payloads []secretPayload
+
+	if strings.Contains(contentType, "multipart/form-data") {
+		// Parse uploaded CSV file from multipart form
+		if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB limit
+			writeError(w, http.StatusBadRequest, "failed to parse multipart form")
+			return
+		}
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "file field is required in form")
+			return
+		}
+		defer file.Close()
+
+		parsed, err := parseCSVSecrets(file)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid CSV: %v", err))
+			return
+		}
+		payloads = parsed
+	} else if strings.Contains(contentType, "text/csv") {
+		parsed, err := parseCSVSecrets(r.Body)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("invalid CSV: %v", err))
+			return
+		}
+		payloads = parsed
+	} else {
+		// Standard JSON body
+		var req importSecretsRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid request body")
+			return
+		}
+		payloads = req.Secrets
+	}
+
+	if len(payloads) == 0 {
+		writeError(w, http.StatusBadRequest, "no credentials provided for import")
+		return
+	}
+
+	var toInsert []models.Secret
+	skipped := 0
+
+	for _, item := range payloads {
+		val := strings.TrimSpace(item.Value)
+		if val == "" {
+			skipped++
+			continue
+		}
+
+		title := strings.TrimSpace(item.Title)
+		urlStr := strings.TrimSpace(item.URL)
+		if title == "" && urlStr != "" {
+			title = cleanDomainFromURL(urlStr)
+		}
+		if title == "" {
+			title = "Imported Credential"
+		}
+
+		kind := strings.TrimSpace(item.Kind)
+		if kind == "" {
+			kind = models.SecretKindPassword
+		}
+
+		enc, err := crypto.EncryptSecret(val, s.cfg.SecretMasterKey)
+		if err != nil {
+			s.log.Error("encrypt secret during import failed", "err", err)
+			continue
+		}
+
+		toInsert = append(toInsert, models.Secret{
+			UserID:         user.ID,
+			Title:          title,
+			Kind:           kind,
+			Username:       strings.TrimSpace(item.Username),
+			URL:            urlStr,
+			EncryptedValue: enc,
+			Notes:          strings.TrimSpace(item.Notes),
+		})
+	}
+
+	inserted, err := s.store.CreateSecretsBatch(r.Context(), toInsert)
+	if err != nil {
+		s.log.Error("batch create secrets failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "failed to import secrets batch")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":   "ok",
+		"imported": inserted,
+		"skipped":  skipped,
+		"total":    len(payloads),
+	})
+}
+
+func parseCSVSecrets(reader io.Reader) ([]secretPayload, error) {
+	csvReader := csv.NewReader(reader)
+	csvReader.FieldsPerRecord = -1
+	csvReader.TrimLeadingSpace = true
+
+	records, err := csvReader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("read csv: %w", err)
+	}
+	if len(records) < 2 {
+		return nil, errors.New("csv is empty or missing headers")
+	}
+
+	headerMap := make(map[string]int)
+	for i, h := range records[0] {
+		cleaned := strings.ToLower(strings.Trim(strings.TrimSpace(h), `"'`))
+		headerMap[cleaned] = i
+	}
+
+	colIdx := func(candidates ...string) int {
+		for _, c := range candidates {
+			if idx, ok := headerMap[c]; ok {
+				return idx
+			}
+		}
+		return -1
+	}
+
+	titleIdx := colIdx("name", "title", "folder")
+	urlIdx := colIdx("url", "login_uri", "uri", "website", "formactionorigin")
+	userIdx := colIdx("username", "login_username", "user", "login", "email")
+	passIdx := colIdx("password", "login_password", "pass")
+	notesIdx := colIdx("notes", "note")
+
+	if passIdx == -1 {
+		return nil, errors.New("no password column found in CSV")
+	}
+
+	var parsed []secretPayload
+	for _, row := range records[1:] {
+		val := ""
+		if passIdx < len(row) {
+			val = strings.TrimSpace(row[passIdx])
+		}
+		if val == "" {
+			continue
+		}
+
+		title := ""
+		if titleIdx != -1 && titleIdx < len(row) {
+			title = strings.TrimSpace(row[titleIdx])
+		}
+
+		rawURL := ""
+		if urlIdx != -1 && urlIdx < len(row) {
+			rawURL = strings.TrimSpace(row[urlIdx])
+		}
+
+		user := ""
+		if userIdx != -1 && userIdx < len(row) {
+			user = strings.TrimSpace(row[userIdx])
+		}
+
+		notes := ""
+		if notesIdx != -1 && notesIdx < len(row) {
+			notes = strings.TrimSpace(row[notesIdx])
+		}
+
+		if title == "" && rawURL != "" {
+			title = cleanDomainFromURL(rawURL)
+		}
+		if title == "" {
+			title = "Imported Credential"
+		}
+
+		parsed = append(parsed, secretPayload{
+			Title:    title,
+			URL:      rawURL,
+			Username: user,
+			Value:    val,
+			Notes:    notes,
+			Kind:     models.SecretKindPassword,
+		})
+	}
+
+	return parsed, nil
+}
+
+func cleanDomainFromURL(rawURL string) string {
+	d := rawURL
+	d = strings.TrimPrefix(d, "https://")
+	d = strings.TrimPrefix(d, "http://")
+	if idx := strings.Index(d, "/"); idx != -1 {
+		d = d[:idx]
+	}
+	if idx := strings.Index(d, ":"); idx != -1 {
+		d = d[:idx]
+	}
+	d = strings.TrimPrefix(d, "www.")
+	if d == "" {
+		return "Imported Credential"
+	}
+	return strings.ToUpper(d[:1]) + d[1:]
 }

@@ -356,7 +356,10 @@
         <button class="chip" data-kind="api_key" role="tab">API Keys</button>
         <button class="chip" data-kind="note" role="tab">Notes</button>
       </div>
-      <button class="btn btn-primary btn-sm" id="newSecretBtn"><svg><use href="#i-plus"/></svg> New Secret</button>
+      <div class="vault-actions-group">
+        <button class="btn btn-secondary btn-sm" id="importPasswordsBtn"><svg><use href="#i-download"/></svg> Import</button>
+        <button class="btn btn-primary btn-sm" id="newSecretBtn"><svg><use href="#i-plus"/></svg> New Secret</button>
+      </div>
     </div>
 
     <!-- Extension Prompt Banner -->
@@ -496,6 +499,82 @@
     </form>
   </div>
 </div>
+
+<!-- Password Import Modal -->
+<div class="modal" id="importModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <header class="modal-head">
+      <div>
+        <h2 id="importModalTitle" class="flex-align-gap"><svg><use href="#i-download"/></svg> Import Browser Passwords</h2>
+        <span class="vault-encryption-badge">CSV IMPORT &bull; CHROME, FIREFOX, SAFARI, EDGE</span>
+      </div>
+      <button class="icon-btn" id="importModalClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>
+    </header>
+
+    <div class="import-modal-body">
+      <!-- Browser instructions -->
+      <div class="import-guides-row">
+        <div class="import-guide-pill">
+          <b>Chrome / Edge</b>
+          <span>Settings &rarr; Passwords &rarr; &vellip; &rarr; Export</span>
+        </div>
+        <div class="import-guide-pill">
+          <b>Firefox</b>
+          <span>about:logins &rarr; Menu &rarr; Export Logins</span>
+        </div>
+        <div class="import-guide-pill">
+          <b>Safari</b>
+          <span>Settings &rarr; Passwords &rarr; Export All</span>
+        </div>
+      </div>
+
+      <!-- File Drop Zone -->
+      <div class="csv-dropzone" id="csvDropZone">
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" hidden>
+        <div class="dropzone-icon">
+          <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </div>
+        <div class="dropzone-content">
+          <b id="dropzoneTitle">Choose or drop passwords.csv</b>
+          <span id="dropzoneSubtitle">Supports Chrome, Firefox, Edge, Safari, and Bitwarden export files</span>
+        </div>
+        <button type="button" class="btn btn-secondary btn-sm" id="browseCsvBtn">Select CSV File</button>
+      </div>
+
+      <!-- Preview Section -->
+      <div id="importPreviewArea" hidden class="import-preview-area">
+        <div class="preview-header">
+          <span id="previewCountBadge" class="preview-badge">0 Logins Found</span>
+          <span class="preview-note">Will be hardware-grade encrypted (AES-256-GCM)</span>
+        </div>
+        <div class="preview-table-wrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>Site / Title</th>
+                <th>Username</th>
+                <th>Password</th>
+              </tr>
+            </thead>
+            <tbody id="previewTableBody"></tbody>
+          </table>
+        </div>
+        <div class="import-modal-footer">
+          <button type="button" class="btn btn-ghost" id="cancelImportBtn">Cancel</button>
+          <button type="button" class="btn btn-primary" id="confirmImportBtn">
+            <svg><use href="#i-shield"/></svg> Import &amp; Save Encrypted
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 
 <div class="lightbox" id="lightbox" hidden>
   <button class="icon-btn lightbox-close" id="lightboxClose" aria-label="Close"><svg><use href="#i-x"/></svg></button>

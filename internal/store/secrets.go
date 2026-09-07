@@ -35,6 +35,48 @@ func (s *Store) CreateSecret(ctx context.Context, sec models.Secret) (models.Sec
 	return sec, nil
 }
 
+func (s *Store) CreateSecretsBatch(ctx context.Context, secrets []models.Secret) (int, error) {
+	if len(secrets) == 0 {
+		return 0, nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	now := time.Now().UTC()
+	inserted := 0
+
+	for _, sec := range secrets {
+		if sec.ID == "" {
+			sec.ID = uuid.New().String()
+		}
+		if sec.CreatedAt.IsZero() {
+			sec.CreatedAt = now
+		}
+		if sec.UpdatedAt.IsZero() {
+			sec.UpdatedAt = now
+		}
+
+		_, err := tx.Exec(ctx, `
+			INSERT INTO secrets (id, user_id, title, kind, username, url, encrypted_value, notes, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+			sec.ID, sec.UserID, sec.Title, sec.Kind, sec.Username, sec.URL, sec.EncryptedValue, sec.Notes, sec.CreatedAt, sec.UpdatedAt)
+		if err != nil {
+			return inserted, fmt.Errorf("insert batch secret: %w", err)
+		}
+		inserted++
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, fmt.Errorf("commit batch secrets: %w", err)
+	}
+
+	return inserted, nil
+}
+
 func (s *Store) ListSecrets(ctx context.Context, userID string) ([]models.Secret, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT `+secretColumns+`
